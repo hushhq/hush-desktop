@@ -3,7 +3,8 @@ Thumbs.db
 .env
 .env.*
 node_modules/
+out/
 dist/
-build/
+renderer/
 coverage/
 *.log

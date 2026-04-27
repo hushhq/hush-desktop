@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "types": ["node"]
+  },
+  "include": ["src/**/*", "__tests__/**/*", "electron.vite.config.ts", "vitest.config.ts"],
+  "exclude": ["node_modules", "out", "dist", "renderer"]
+}
