@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   chooseDisplayMediaSource,
   isTrustedMediaRequest,
+  isTrustedRendererPermission,
   isTrustedMediaOrigin,
   resolveDevRendererOrigin,
   type DesktopMediaSource,
@@ -90,6 +91,24 @@ describe('isTrustedMediaRequest', () => {
       securityOrigin: 'https://evil.example.com',
       frameUrl: 'file:///tmp/index.html',
     }, dev)).toBe(false);
+  });
+});
+
+describe('isTrustedRendererPermission', () => {
+  it('allows browser affordances the renderer actually uses', () => {
+    expect(isTrustedRendererPermission('media')).toBe(true);
+    expect(isTrustedRendererPermission('display-capture')).toBe(true);
+    expect(isTrustedRendererPermission('clipboard-sanitized-write')).toBe(true);
+    expect(isTrustedRendererPermission('fullscreen')).toBe(true);
+    expect(isTrustedRendererPermission('notifications')).toBe(true);
+  });
+
+  it('denies sensitive permissions that Hush does not use', () => {
+    expect(isTrustedRendererPermission('clipboard-read')).toBe(false);
+    expect(isTrustedRendererPermission('fileSystem')).toBe(false);
+    expect(isTrustedRendererPermission('openExternal')).toBe(false);
+    expect(isTrustedRendererPermission('usb')).toBe(false);
+    expect(isTrustedRendererPermission('hid')).toBe(false);
   });
 });
 

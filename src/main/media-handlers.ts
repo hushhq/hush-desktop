@@ -6,6 +6,7 @@ import {
 import {
   chooseDisplayMediaSource,
   isTrustedMediaRequest,
+  isTrustedRendererPermission,
   resolveDevRendererOrigin,
 } from './media-permissions';
 
@@ -49,10 +50,8 @@ export function registerMediaHandlers(
   const devOrigin = resolveDevRendererOrigin(options.devRendererUrl);
 
   session.setPermissionRequestHandler((_webContents, permission, callback, details) => {
-    if (permission !== 'media') {
-      // Other permissions (clipboard-read, notifications, …) keep
-      // Chromium defaults: deny by default. Returning `false` is the
-      // explicit deny path.
+    if (!isTrustedRendererPermission(permission)) {
+      console.warn('[media] denied unsupported permission request', { permission });
       callback(false);
       return;
     }
@@ -77,7 +76,7 @@ export function registerMediaHandlers(
   });
 
   session.setPermissionCheckHandler((_webContents, permission, requestingOrigin, details) => {
-    if (permission !== 'media') return false;
+    if (!isTrustedRendererPermission(permission)) return false;
     return isTrustedMediaRequest({
       requestingOrigin,
       requestingUrl: details?.requestingUrl,

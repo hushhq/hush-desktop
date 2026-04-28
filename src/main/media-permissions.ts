@@ -8,6 +8,13 @@
 
 const PROD_RENDERER_ORIGIN = 'app://localhost';
 const DEFAULT_DEV_RENDERER_URL = 'http://localhost:5173';
+const TRUSTED_RENDERER_PERMISSIONS = new Set([
+  'media',
+  'display-capture',
+  'clipboard-sanitized-write',
+  'fullscreen',
+  'notifications',
+]);
 
 /**
  * Subset of the Electron `DesktopCapturerSource` shape that we actually
@@ -105,6 +112,17 @@ export function isTrustedMediaRequest(
 }
 
 /**
+ * Electron permission handlers replace Chromium/Electron's default
+ * behaviour. Returning `false` for every permission we do not
+ * explicitly know about is intentional, but the renderer still needs a
+ * small set of browser permissions that are normal web-app affordances:
+ * sanitized clipboard writes, fullscreen, notifications, and media.
+ */
+export function isTrustedRendererPermission(permission: string): boolean {
+  return TRUSTED_RENDERER_PERMISSIONS.has(permission);
+}
+
+/**
  * Picks a single desktop-capturer source for the MVP screen-share
  * flow. Order of preference:
  *   1. The first source whose `id` starts with `screen:` (a whole
@@ -134,4 +152,5 @@ export function chooseDisplayMediaSource(
 export const _internals = {
   PROD_RENDERER_ORIGIN,
   DEFAULT_DEV_RENDERER_URL,
+  TRUSTED_RENDERER_PERMISSIONS,
 };
