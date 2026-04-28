@@ -8,12 +8,13 @@
   "scripts": {
     "dev": "npm run copy-icons && electron-vite dev",
     "build": "electron-vite build",
+    "build-renderer": "npm --prefix ../hush-web run build",
     "copy-renderer": "node scripts/copy-renderer.cjs",
     "copy-icons": "node scripts/copy-icons.cjs",
     "release:preflight:mac": "node scripts/release-preflight.cjs",
-    "dist:mac": "npm run release:preflight:mac && npm run build && npm run copy-renderer && npm run copy-icons && electron-builder --mac --config electron-builder.config.js",
-    "dist:linux": "npm run build && npm run copy-renderer && npm run copy-icons && electron-builder --linux --config electron-builder.config.js",
-    "dist:win": "npm run build && npm run copy-renderer && npm run copy-icons && electron-builder --win --config electron-builder.config.js",
+    "dist:mac": "npm run release:preflight:mac && npm run build && npm run build-renderer && npm run copy-renderer && npm run copy-icons && electron-builder --mac --config electron-builder.config.js",
+    "dist:linux": "npm run build && npm run build-renderer && npm run copy-renderer && npm run copy-icons && electron-builder --linux --config electron-builder.config.js",
+    "dist:win": "npm run build && npm run build-renderer && npm run copy-renderer && npm run copy-icons && electron-builder --win --config electron-builder.config.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
