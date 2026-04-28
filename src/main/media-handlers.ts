@@ -9,6 +9,7 @@ import {
   isTrustedRendererPermission,
   resolveDevRendererOrigin,
 } from './media-permissions';
+import { recordEvent } from './diagnostics';
 
 /**
  * Wires Electron's media permission + display-capture handlers onto the
@@ -51,7 +52,7 @@ export function registerMediaHandlers(
 
   session.setPermissionRequestHandler((_webContents, permission, callback, details) => {
     if (!isTrustedRendererPermission(permission)) {
-      console.warn('[media] denied unsupported permission request', { permission });
+      recordEvent('permission', 'request:denied:unsupported', { permission });
       callback(false);
       return;
     }
@@ -59,14 +60,15 @@ export function registerMediaHandlers(
     const securityOrigin = 'securityOrigin' in details ? details.securityOrigin : undefined;
     const trusted = isTrustedMediaRequest({ requestingUrl, securityOrigin }, devOrigin);
     if (!trusted) {
-      console.warn(
-        '[media] denied permission request from untrusted origin',
-        { permission, requestingUrl, securityOrigin },
-      );
+      recordEvent('permission', 'request:denied:untrusted-origin', {
+        permission,
+        requestingUrl,
+        securityOrigin,
+      });
       callback(false);
       return;
     }
-    console.info('[media] granted permission request', {
+    recordEvent('permission', 'request:granted', {
       permission,
       requestingUrl,
       securityOrigin,
@@ -76,23 +78,34 @@ export function registerMediaHandlers(
   });
 
   session.setPermissionCheckHandler((_webContents, permission, requestingOrigin, details) => {
-    if (!isTrustedRendererPermission(permission)) return false;
-    return isTrustedMediaRequest({
+    if (!isTrustedRendererPermission(permission)) {
+      recordEvent('permission', 'check:denied:unsupported', { permission, requestingOrigin });
+      return false;
+    }
+    const granted = isTrustedMediaRequest({
       requestingOrigin,
       requestingUrl: details?.requestingUrl,
       securityOrigin: details?.securityOrigin,
     }, devOrigin);
+    recordEvent('permission', granted ? 'check:granted' : 'check:denied:untrusted-origin', {
+      permission,
+      requestingOrigin,
+      requestingUrl: details?.requestingUrl,
+      securityOrigin: details?.securityOrigin,
+    });
+    return granted;
   });
 
   const useSystemPicker = shouldUseSystemDisplayMediaPicker();
+  recordEvent('media', 'display-media:wired', { useSystemPicker });
   session.setDisplayMediaRequestHandler(async (request, callback) => {
     const frameUrl = request?.frame?.url ?? '';
     const securityOrigin = request?.securityOrigin ?? '';
     if (!isTrustedMediaRequest({ frameUrl, securityOrigin }, devOrigin)) {
-      console.warn(
-        '[media] denied display-media request from untrusted origin',
-        { frameUrl, securityOrigin },
-      );
+      recordEvent('permission', 'display-media:denied:untrusted-origin', {
+        frameUrl,
+        securityOrigin,
+      });
       // Empty selection short-circuits getDisplayMedia with
       // NotAllowedError on the renderer, which is what we want.
       callback({});
@@ -106,10 +119,18 @@ export function registerMediaHandlers(
       });
       const chosen = chooseDisplayMediaSource(sources);
       if (!chosen) {
-        console.warn('[media] no desktop-capturer sources available');
+        recordEvent('media', 'display-media:no-sources', { frameUrl });
         callback({});
         return;
       }
+      // Source `name` is intentionally omitted: window names can carry
+      // document titles or other private app names. The opaque `id`
+      // (e.g. `screen:0:0`, `window:1234:0`) is enough to diagnose
+      // which kind of source was selected without leaking content.
+      recordEvent('permission', 'display-media:granted', {
+        frameUrl,
+        sourceId: chosen.id,
+      });
       // System audio capture is platform-gated (macOS does not allow
       // loopback audio capture without a third-party kext; Windows
       // supports it on a per-source basis; Linux PipeWire support
@@ -119,7 +140,9 @@ export function registerMediaHandlers(
       // user's microphone separately and LiveKit publishes both.
       callback({ video: chosen });
     } catch (err) {
-      console.error('[media] desktopCapturer.getSources failed', err);
+      recordEvent('media', 'display-media:capturer-error', {
+        message: err instanceof Error ? err.message : String(err),
+      });
       callback({});
     }
   }, { useSystemPicker });
@@ -148,20 +171,26 @@ function shouldUseSystemDisplayMediaPicker(): boolean {
 function primeMacMediaAccess(kind: 'microphone' | 'camera'): void {
   try {
     const status = systemPreferences.getMediaAccessStatus(kind);
-    console.info('[media] macOS access status', { kind, status });
+    recordEvent('tcc', 'access-status', { kind, status });
     if (status === 'not-determined') {
       systemPreferences
         .askForMediaAccess(kind)
         .then((granted) => {
-          console.info('[media] macOS askForMediaAccess result', { kind, granted });
+          recordEvent('tcc', 'ask-result', { kind, granted });
         })
         .catch((err) => {
-          console.warn('[media] macOS askForMediaAccess threw', { kind, err });
+          recordEvent('tcc', 'ask-threw', {
+            kind,
+            message: err instanceof Error ? err.message : String(err),
+          });
         });
     }
   } catch (err) {
     // Old Electron / non-macOS builds may not expose the call at all.
     // The handlers above still work; we just lose the proactive prompt.
-    console.warn('[media] macOS media-access priming failed', { kind, err });
+    recordEvent('tcc', 'priming-failed', {
+      kind,
+      message: err instanceof Error ? err.message : String(err),
+    });
   }
 }

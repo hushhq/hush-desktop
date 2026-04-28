@@ -3,17 +3,16 @@
  * Stages the brand icon assets into hush-desktop/build for both
  * electron-builder and dev-mode use.
  *
- * Sources of truth:
- *   - hush-web/public/icon-512.png   (PWA/web brand artwork; used as
+ * Source of truth:
+ *   - assets/hush.icon               (Apple Icon Composer document,
+ *                                     committed with this repo). Its
+ *                                     Assets/icon.png is also used as
  *                                     the cross-platform fallback for
- *                                     Linux .png and Windows .ico)
- *   - ../hush.icon                   (Apple Icon Composer document;
- *                                     macOS-canonical source. Compiled
- *                                     to a real `.icns` via `actool`,
- *                                     which bakes the Tahoe Liquid
- *                                     Glass / gradient effects into
- *                                     the standard 16/32/128/256/512
- *                                     renditions Electron+macOS read.)
+ *                                     Linux .png and Windows .ico.
+ *
+ * The repo-local source keeps desktop packaging self-contained. The
+ * historical ../hush.icon path is retained only as a local development
+ * fallback for operators who keep brand sources at the monorepo root.
  *
  * Outputs:
  *   - build/icon.png   (always — Linux + Windows derive from this)
@@ -31,13 +30,19 @@ const { cpSync, mkdirSync, existsSync } = require('fs');
 const { execFileSync } = require('child_process');
 const { join } = require('path');
 
-const repoRoot = join(__dirname, '..', '..');
+const desktopRoot = join(__dirname, '..');
+const repoRoot = join(desktopRoot, '..');
 const buildDir = join(__dirname, '..', 'build');
 
-const pngSrc = join(repoRoot, 'hush-web', 'public', 'icon-512.png');
+const localIconSrc = join(desktopRoot, 'assets', 'hush.icon');
+const rootIconSrc = join(repoRoot, 'hush.icon');
+const iconSrc = existsSync(localIconSrc) ? localIconSrc : rootIconSrc;
+
+const localPngSrc = join(iconSrc, 'Assets', 'icon.png');
+const webPngSrc = join(repoRoot, 'hush-web', 'public', 'icon-512.png');
+const pngSrc = existsSync(localPngSrc) ? localPngSrc : webPngSrc;
 const pngDest = join(buildDir, 'icon.png');
 
-const iconSrc = join(repoRoot, 'hush.icon');
 const icnsDest = join(buildDir, 'icon.icns');
 
 if (!existsSync(pngSrc)) {
@@ -62,7 +67,7 @@ if (process.platform !== 'darwin') {
 }
 
 if (!existsSync(iconSrc)) {
-  console.warn(`hush.icon not found at: ${iconSrc}`);
+  console.warn(`hush.icon not found at: ${localIconSrc} or ${rootIconSrc}`);
   console.warn('skipping macOS .icns compile; mac will fall back to icon.png.');
   process.exit(0);
 }

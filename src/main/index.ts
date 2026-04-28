@@ -5,6 +5,7 @@ import { registerAppScheme, registerAppProtocol } from './protocol';
 import { createMainWindow } from './window';
 import { registerIpcHandlers } from './ipc/handlers';
 import { registerMediaHandlers } from './media-handlers';
+import { logBootSnapshot } from './diagnostics';
 
 // registerAppScheme must run before app.whenReady()
 registerAppScheme();
@@ -73,6 +74,11 @@ app.whenReady().then(() => {
   registerMediaHandlers(session.defaultSession, {
     devRendererUrl: process.env.HUSH_WEB_URL,
   });
+  // Capture boot context (paths, argv, packaged-or-not) to the desktop
+  // diagnostics log. Critical for `open Hush.app` debugging because
+  // LaunchServices detaches stdout in that flow — without the file log
+  // there is no record of permission decisions or boot state.
+  logBootSnapshot({ devRendererUrl: process.env.HUSH_WEB_URL ?? null });
   applyDevDockIconIfNeeded();
   createMainWindow();
 
