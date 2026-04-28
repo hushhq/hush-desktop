@@ -100,7 +100,7 @@ No vault key access in the renderer. That boundary is explicitly deferred to the
 | Shell | [Electron](https://www.electronjs.org/) ^34 |
 | Build | [electron-vite](https://electron-vite.org/) |
 | Packaging | [electron-builder](https://www.electron.build/) |
-| Auto-update | electron-updater (wired in next slice) |
+| Auto-update | electron-updater (metadata emitted; runtime not wired) |
 | Keychain | keytar (wired in next slice — vault PIN storage) |
 
 ---
@@ -145,10 +145,32 @@ What this means in practice:
 
 ---
 
+## Update path status (MVP)
+
+The repo already produces the metadata that an `electron-updater` flow expects, but the runtime side of that flow is intentionally NOT wired. As above, the four states are easy to confuse — keep them separate:
+
+| Layer | What it means | Current state |
+|-|-|-|
+| **Updater dependency declared** | `electron-updater` is in `package.json`. | **Yes** (`electron-updater: ^6.3.0`). |
+| **Update metadata files emitted by packaging** | `electron-builder` writes `app-update.yml` into the packaged app's `Resources/` and writes `latest-*.yml` (`latest-mac.yml`, `latest-linux-arm64.yml`, `latest.yml`) alongside the build artefacts in `dist/`. These are the files an updater client reads to decide whether a new release exists. | **Yes**. The shipped `app-update.yml` reads `provider: github / owner: hushhq / repo: hush-desktop` (auto-derived from the git remote — no `publish` config in `electron-builder.config.js`). |
+| **App actually checks a live feed at runtime** | Main-process code calls `autoUpdater.checkForUpdates()` (or equivalent) and surfaces `update-available` / `update-downloaded` events. | **No**. There is no `autoUpdater` reference anywhere under `src/main/`. The packaged app never queries GitHub for updates and never prompts the user. |
+| **App successfully downloads and applies updates** | A real release is published, the running app downloads it, `electron-updater` verifies the signature and stages it, and the next launch comes up on the new version. | **No**. Even if the runtime check were wired, `https://api.github.com/repos/hushhq/hush-desktop/releases` currently returns `[]` — the GitHub repo exists but has no published releases yet, so any feed query would resolve to "no update". And the macOS bundle is signed with an Apple Development cert, not a Developer ID, so `electron-updater`'s signature requirement could not currently be satisfied for a real downloaded `.zip` even if releases existed. |
+
+Net effect: **the desktop wrapper today is a manually-distributed, manually-updated binary.** Users on the MVP build will not be auto-prompted to update. The intended GitHub-releases distribution layout exists in metadata, but several real prerequisites are missing before a runtime updater can be safely wired:
+
+1. A first published release on `github.com/hushhq/hush-desktop` (the `latest-*.yml` + the corresponding `.zip` / `.dmg` / `.AppImage` / `.exe` uploaded as release assets).
+2. A signing identity that `electron-updater` can verify — Developer ID Application (macOS) and an Authenticode certificate (Windows). The current Apple Development cert is not sufficient.
+3. A privacy-conscious update UX. Hush is a privacy-focused product; a silent on-launch check that sends a request to `api.github.com` on every cold start is a tracking surface that must be opt-in or at least disclosed in the user settings before being enabled by default.
+4. Notarized macOS artefacts (see "macOS distribution status") — the Sparkle/Squirrel chain that `electron-updater` drives on macOS expects notarized + stapled bundles.
+
+A future updater slice should land the wiring (`autoUpdater.checkForUpdatesAndNotify()` or an explicit user-triggered check, with proper event handling and error logging), the privacy UX, and the corresponding notes in user-facing settings — none of which is honest to do in one slice without those prerequisites in place.
+
+---
+
 ## Deferred (next slice)
 
 - **Vault wrapping key via OS keychain**: `keytar` integration for macOS Keychain / Windows Credential Store / libsecret. The IPC channel shape is reserved in `src/shared/ipc-channels.ts`; the renderer must never hold key material directly.
-- **Auto-update wiring**: `electron-updater` is installed; the update check and event handlers are not yet registered.
+- **Auto-update wiring**: see the "Update path status" table above. Metadata is emitted, runtime is not wired, no releases published, signing prerequisites unmet.
 - **CSP header**: a strict `Content-Security-Policy` for the `app://` protocol handler once all asset origins are known.
 - **macOS production code signing + notarization**: see the "macOS distribution status" table above.
 - **Windows Authenticode signing**: an EV / OV code-signing certificate plus `signtool.exe` wiring in `win.certificateFile` / `win.certificatePassword` (or the equivalent CSC env vars). Without it, Windows SmartScreen will warn on first launch.
