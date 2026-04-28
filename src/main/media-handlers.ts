@@ -1,0 +1,160 @@
+import {
+  desktopCapturer,
+  systemPreferences,
+  type Session,
+} from 'electron';
+import {
+  chooseDisplayMediaSource,
+  isTrustedMediaOrigin,
+  resolveDevRendererOrigin,
+} from './media-permissions';
+
+/**
+ * Wires Electron's media permission + display-capture handlers onto the
+ * supplied session. Must run after `app.whenReady()` because it touches
+ * `session` and `systemPreferences`.
+ *
+ * Three pieces of wiring:
+ *
+ *   1. `setPermissionRequestHandler` — accepts `media` requests from
+ *      trusted origins (production `app://localhost` and dev
+ *      `HUSH_WEB_URL`) and rejects everything else. Without this,
+ *      Chromium's default policy in Electron rejects mic/camera even
+ *      after the macOS TCC prompt has been accepted, surfacing as the
+ *      "permitted in System Settings but the app can't see it"
+ *      symptom.
+ *
+ *   2. `setPermissionCheckHandler` — mirror of (1) for the synchronous
+ *      `permissions.query` style checks. Same trust boundary.
+ *
+ *   3. `setDisplayMediaRequestHandler` — implements `getDisplayMedia`
+ *      for trusted renderers by calling `desktopCapturer.getSources`
+ *      and selecting a source via `chooseDisplayMediaSource`. Without
+ *      this handler, `navigator.mediaDevices.getDisplayMedia(...)`
+ *      throws `NotSupportedError: Not supported` (the Electron
+ *      default has no fallback like Chromium's Web UI picker). The
+ *      MVP picks a default source automatically; see
+ *      `chooseDisplayMediaSource` for the tradeoff comment.
+ *
+ * On macOS the handlers also run a one-shot pre-prompt for mic/camera
+ * via `systemPreferences.askForMediaAccess`, so the OS TCC dialog
+ * surfaces before LiveKit's `getUserMedia` rather than during the
+ * first publish. Failures are logged and not fatal: the renderer
+ * fallback still works.
+ */
+export function registerMediaHandlers(
+  session: Session,
+  options: { devRendererUrl: string | undefined } = { devRendererUrl: undefined },
+): void {
+  const devOrigin = resolveDevRendererOrigin(options.devRendererUrl);
+
+  session.setPermissionRequestHandler((_webContents, permission, callback, details) => {
+    if (permission !== 'media') {
+      // Other permissions (clipboard-read, notifications, …) keep
+      // Chromium defaults: deny by default. Returning `false` is the
+      // explicit deny path.
+      callback(false);
+      return;
+    }
+    const requestingUrl = details?.requestingUrl ?? '';
+    const trusted = isTrustedMediaOrigin(requestingUrl, devOrigin);
+    if (!trusted) {
+      console.warn(
+        '[media] denied permission request from untrusted origin',
+        { permission, requestingUrl },
+      );
+      callback(false);
+      return;
+    }
+    callback(true);
+  });
+
+  session.setPermissionCheckHandler((_webContents, permission, requestingOrigin) => {
+    if (permission !== 'media') return false;
+    return isTrustedMediaOrigin(requestingOrigin, devOrigin);
+  });
+
+  session.setDisplayMediaRequestHandler(async (request, callback) => {
+    const requestingUrl = request?.frame?.url ?? '';
+    if (!isTrustedMediaOrigin(requestingUrl, devOrigin)) {
+      console.warn(
+        '[media] denied display-media request from untrusted origin',
+        { requestingUrl },
+      );
+      // Empty selection short-circuits getDisplayMedia with
+      // NotAllowedError on the renderer, which is what we want.
+      callback({});
+      return;
+    }
+
+    // Prefer the platform-native picker when Electron exposes one
+    // (macOS 15+, recent Windows). The system picker gives the user a
+    // real source choice and avoids the MVP auto-pick tradeoff
+    // entirely. We still register desktopCapturer fallback below so
+    // older macOS / Linux keep working.
+    const pickerProbe = (desktopCapturer as unknown as {
+      isDisplayMediaSystemPickerAvailable?: () => boolean;
+    }).isDisplayMediaSystemPickerAvailable;
+    if (typeof pickerProbe === 'function' && pickerProbe.call(desktopCapturer)) {
+      (callback as (s: { useSystemPicker?: boolean }) => void)({ useSystemPicker: true });
+      return;
+    }
+
+    try {
+      const sources = await desktopCapturer.getSources({
+        types: ['screen', 'window'],
+        fetchWindowIcons: false,
+      });
+      const chosen = chooseDisplayMediaSource(sources);
+      if (!chosen) {
+        console.warn('[media] no desktop-capturer sources available');
+        callback({});
+        return;
+      }
+      // System audio capture is platform-gated (macOS does not allow
+      // loopback audio capture without a third-party kext; Windows
+      // supports it on a per-source basis; Linux PipeWire support
+      // varies). Returning audio: 'loopback' on macOS would silently
+      // drop the audio track and confuse callers. The safer default
+      // is video-only; the renderer's getUserMedia path picks up the
+      // user's microphone separately and LiveKit publishes both.
+      callback({ video: chosen });
+    } catch (err) {
+      console.error('[media] desktopCapturer.getSources failed', err);
+      callback({});
+    }
+  });
+
+  if (process.platform === 'darwin') {
+    primeMacMediaAccess('microphone');
+    primeMacMediaAccess('camera');
+  }
+}
+
+/**
+ * Triggers the macOS TCC prompt for the named media type up-front so
+ * the OS dialog surfaces predictably during app launch instead of
+ * mid-call. Logs the resolved authorisation status. Never throws:
+ * `askForMediaAccess` returns `false` when permission is denied
+ * (already-denied surface needs the user to flip System Settings).
+ */
+function primeMacMediaAccess(kind: 'microphone' | 'camera'): void {
+  try {
+    const status = systemPreferences.getMediaAccessStatus(kind);
+    console.info('[media] macOS access status', { kind, status });
+    if (status === 'not-determined') {
+      systemPreferences
+        .askForMediaAccess(kind)
+        .then((granted) => {
+          console.info('[media] macOS askForMediaAccess result', { kind, granted });
+        })
+        .catch((err) => {
+          console.warn('[media] macOS askForMediaAccess threw', { kind, err });
+        });
+    }
+  } catch (err) {
+    // Old Electron / non-macOS builds may not expose the call at all.
+    // The handlers above still work; we just lose the proactive prompt.
+    console.warn('[media] macOS media-access priming failed', { kind, err });
+  }
+}

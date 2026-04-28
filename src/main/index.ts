@@ -1,9 +1,10 @@
-import { app, BrowserWindow, nativeImage } from 'electron';
+import { app, BrowserWindow, nativeImage, session } from 'electron';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { registerAppScheme, registerAppProtocol } from './protocol';
 import { createMainWindow } from './window';
 import { registerIpcHandlers } from './ipc/handlers';
+import { registerMediaHandlers } from './media-handlers';
 
 // registerAppScheme must run before app.whenReady()
 registerAppScheme();
@@ -65,6 +66,13 @@ app.on('second-instance', () => {
 app.whenReady().then(() => {
   registerAppProtocol();
   registerIpcHandlers();
+  // Wire mic/camera/screen-share permission + capture handlers on the
+  // default session before any window opens; otherwise renderer
+  // getUserMedia/getDisplayMedia calls hit Electron's empty defaults
+  // (mic/cam silently rejected, getDisplayMedia throws NotSupportedError).
+  registerMediaHandlers(session.defaultSession, {
+    devRendererUrl: process.env.HUSH_WEB_URL,
+  });
   applyDevDockIconIfNeeded();
   createMainWindow();
 
