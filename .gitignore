@@ -8,3 +8,8 @@ dist/
 renderer/
 coverage/
 *.log
+
+# Brand icons mirrored from hush-web at build time (see scripts/copy-icons.cjs).
+build/icon.png
+build/icon.icns
+build/icon.ico

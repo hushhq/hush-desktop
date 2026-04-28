@@ -9,9 +9,10 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "copy-renderer": "node scripts/copy-renderer.cjs",
-    "dist:mac": "npm run build && npm run copy-renderer && electron-builder --mac --config electron-builder.config.js",
-    "dist:linux": "npm run build && npm run copy-renderer && electron-builder --linux --config electron-builder.config.js",
-    "dist:win": "npm run build && npm run copy-renderer && electron-builder --win --config electron-builder.config.js",
+    "copy-icons": "node scripts/copy-icons.cjs",
+    "dist:mac": "npm run build && npm run copy-renderer && npm run copy-icons && electron-builder --mac --config electron-builder.config.js",
+    "dist:linux": "npm run build && npm run copy-renderer && npm run copy-icons && electron-builder --linux --config electron-builder.config.js",
+    "dist:win": "npm run build && npm run copy-renderer && npm run copy-icons && electron-builder --win --config electron-builder.config.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
