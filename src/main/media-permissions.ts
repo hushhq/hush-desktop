@@ -77,6 +77,33 @@ export function isTrustedMediaOrigin(
   return origin === PROD_RENDERER_ORIGIN || origin === devOrigin;
 }
 
+export interface MediaRequestOriginParts {
+  requestingOrigin?: string;
+  requestingUrl?: string;
+  securityOrigin?: string;
+  frameUrl?: string;
+}
+
+/**
+ * Electron exposes slightly different origin fields for permission
+ * request, permission check, and display-media request paths. Trust
+ * the request if any canonical origin field matches our renderer
+ * allow-list. This keeps the policy strict while avoiding false
+ * denies when one Electron callback leaves `requestingUrl` empty but
+ * does provide `securityOrigin`.
+ */
+export function isTrustedMediaRequest(
+  parts: MediaRequestOriginParts,
+  devOrigin: string,
+): boolean {
+  return [
+    parts.securityOrigin,
+    parts.requestingOrigin,
+    parts.requestingUrl,
+    parts.frameUrl,
+  ].some((value) => isTrustedMediaOrigin(value, devOrigin));
+}
+
 /**
  * Picks a single desktop-capturer source for the MVP screen-share
  * flow. Order of preference:

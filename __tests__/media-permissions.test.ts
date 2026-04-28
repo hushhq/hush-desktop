@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   chooseDisplayMediaSource,
+  isTrustedMediaRequest,
   isTrustedMediaOrigin,
   resolveDevRendererOrigin,
   type DesktopMediaSource,
@@ -58,6 +59,37 @@ describe('isTrustedMediaOrigin', () => {
   it('honours an alternate dev origin', () => {
     expect(isTrustedMediaOrigin('http://localhost:4321/', 'http://localhost:4321')).toBe(true);
     expect(isTrustedMediaOrigin('http://localhost:5173/', 'http://localhost:4321')).toBe(false);
+  });
+});
+
+describe('isTrustedMediaRequest', () => {
+  const dev = 'http://localhost:5173';
+
+  it('trusts media requests by securityOrigin when requestingUrl is absent', () => {
+    expect(isTrustedMediaRequest({
+      requestingUrl: '',
+      securityOrigin: 'app://localhost',
+    }, dev)).toBe(true);
+  });
+
+  it('trusts media checks by requestingOrigin', () => {
+    expect(isTrustedMediaRequest({
+      requestingOrigin: 'http://localhost:5173',
+    }, dev)).toBe(true);
+  });
+
+  it('trusts display-media requests by frameUrl fallback', () => {
+    expect(isTrustedMediaRequest({
+      frameUrl: 'app://localhost/room/general',
+    }, dev)).toBe(true);
+  });
+
+  it('rejects requests when all supplied origins are untrusted', () => {
+    expect(isTrustedMediaRequest({
+      requestingUrl: 'https://evil.example.com',
+      securityOrigin: 'https://evil.example.com',
+      frameUrl: 'file:///tmp/index.html',
+    }, dev)).toBe(false);
   });
 });
 

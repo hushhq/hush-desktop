@@ -5,7 +5,7 @@ import {
 } from 'electron';
 import {
   chooseDisplayMediaSource,
-  isTrustedMediaOrigin,
+  isTrustedMediaRequest,
   resolveDevRendererOrigin,
 } from './media-permissions';
 
@@ -57,46 +57,46 @@ export function registerMediaHandlers(
       return;
     }
     const requestingUrl = details?.requestingUrl ?? '';
-    const trusted = isTrustedMediaOrigin(requestingUrl, devOrigin);
+    const securityOrigin = 'securityOrigin' in details ? details.securityOrigin : undefined;
+    const trusted = isTrustedMediaRequest({ requestingUrl, securityOrigin }, devOrigin);
     if (!trusted) {
       console.warn(
         '[media] denied permission request from untrusted origin',
-        { permission, requestingUrl },
+        { permission, requestingUrl, securityOrigin },
       );
       callback(false);
       return;
     }
+    console.info('[media] granted permission request', {
+      permission,
+      requestingUrl,
+      securityOrigin,
+      mediaTypes: 'mediaTypes' in details ? details.mediaTypes : undefined,
+    });
     callback(true);
   });
 
-  session.setPermissionCheckHandler((_webContents, permission, requestingOrigin) => {
+  session.setPermissionCheckHandler((_webContents, permission, requestingOrigin, details) => {
     if (permission !== 'media') return false;
-    return isTrustedMediaOrigin(requestingOrigin, devOrigin);
+    return isTrustedMediaRequest({
+      requestingOrigin,
+      requestingUrl: details?.requestingUrl,
+      securityOrigin: details?.securityOrigin,
+    }, devOrigin);
   });
 
+  const useSystemPicker = shouldUseSystemDisplayMediaPicker();
   session.setDisplayMediaRequestHandler(async (request, callback) => {
-    const requestingUrl = request?.frame?.url ?? '';
-    if (!isTrustedMediaOrigin(requestingUrl, devOrigin)) {
+    const frameUrl = request?.frame?.url ?? '';
+    const securityOrigin = request?.securityOrigin ?? '';
+    if (!isTrustedMediaRequest({ frameUrl, securityOrigin }, devOrigin)) {
       console.warn(
         '[media] denied display-media request from untrusted origin',
-        { requestingUrl },
+        { frameUrl, securityOrigin },
       );
       // Empty selection short-circuits getDisplayMedia with
       // NotAllowedError on the renderer, which is what we want.
       callback({});
-      return;
-    }
-
-    // Prefer the platform-native picker when Electron exposes one
-    // (macOS 15+, recent Windows). The system picker gives the user a
-    // real source choice and avoids the MVP auto-pick tradeoff
-    // entirely. We still register desktopCapturer fallback below so
-    // older macOS / Linux keep working.
-    const pickerProbe = (desktopCapturer as unknown as {
-      isDisplayMediaSystemPickerAvailable?: () => boolean;
-    }).isDisplayMediaSystemPickerAvailable;
-    if (typeof pickerProbe === 'function' && pickerProbe.call(desktopCapturer)) {
-      (callback as (s: { useSystemPicker?: boolean }) => void)({ useSystemPicker: true });
       return;
     }
 
@@ -123,12 +123,20 @@ export function registerMediaHandlers(
       console.error('[media] desktopCapturer.getSources failed', err);
       callback({});
     }
-  });
+  }, { useSystemPicker });
 
   if (process.platform === 'darwin') {
     primeMacMediaAccess('microphone');
     primeMacMediaAccess('camera');
   }
+}
+
+function shouldUseSystemDisplayMediaPicker(): boolean {
+  if (process.platform !== 'darwin') return false;
+  const pickerProbe = (desktopCapturer as unknown as {
+    isDisplayMediaSystemPickerAvailable?: () => boolean;
+  }).isDisplayMediaSystemPickerAvailable;
+  return typeof pickerProbe === 'function' && pickerProbe.call(desktopCapturer);
 }
 
 /**
