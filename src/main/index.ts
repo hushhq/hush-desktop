@@ -1,10 +1,52 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, nativeImage } from 'electron';
+import { existsSync } from 'fs';
+import { join } from 'path';
 import { registerAppScheme, registerAppProtocol } from './protocol';
 import { createMainWindow } from './window';
 import { registerIpcHandlers } from './ipc/handlers';
 
 // registerAppScheme must run before app.whenReady()
 registerAppScheme();
+
+/**
+ * In packaged builds, macOS reads the brand icon from the .icns embedded
+ * in Hush.app/Contents/Resources by electron-builder, so the dock and
+ * the cmd-tab switcher already show the Hush icon.
+ *
+ * In `electron-vite dev`, the renderer is hosted by the Electron Helper
+ * binary inside `node_modules/electron/dist/Electron.app`, which carries
+ * the stock Electron icon. The dock icon therefore reverts to Electron's
+ * default unless we explicitly override it via `app.dock.setIcon` once
+ * the app is ready. Guarded on `!app.isPackaged` and `process.platform
+ * === 'darwin'` so production builds and non-mac platforms keep their
+ * existing path.
+ *
+ * Source preference (set by scripts/copy-icons.cjs at build time):
+ *   1. build/icon.icns — the canonical macOS render of `hush.icon`
+ *      (Apple Icon Composer document) with the Tahoe Liquid Glass /
+ *      gradient effects baked into the standard renditions. Preferred.
+ *   2. build/icon.png  — the cross-platform PWA fallback. Used when
+ *      .icns is unavailable (e.g. cross-building from non-macOS hosts).
+ */
+function applyDevDockIconIfNeeded(): void {
+  if (app.isPackaged) return;
+  if (process.platform !== 'darwin') return;
+  if (!app.dock) return;
+
+  const candidates = [
+    join(app.getAppPath(), 'build', 'icon.icns'),
+    join(app.getAppPath(), 'build', 'icon.png'),
+  ];
+  for (const iconPath of candidates) {
+    if (!existsSync(iconPath)) continue;
+    const image = nativeImage.createFromPath(iconPath);
+    if (!image.isEmpty()) {
+      app.dock.setIcon(image);
+      return;
+    }
+  }
+  // No usable icon present yet — keep the default rather than crash.
+}
 
 // Single-instance lock: second launch focuses the existing window instead of opening a new one.
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
@@ -23,6 +65,7 @@ app.on('second-instance', () => {
 app.whenReady().then(() => {
   registerAppProtocol();
   registerIpcHandlers();
+  applyDevDockIconIfNeeded();
   createMainWindow();
 
   app.on('activate', () => {
