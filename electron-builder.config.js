@@ -61,7 +61,18 @@ module.exports = {
     ],
   },
   linux: {
-    target: ['deb', 'AppImage'],
+    // Debian's `dpkg-deb` requires a maintainer "Real Name <email>" string.
+    // Sourced from the documented contact in hush-web/CONTRIBUTING.md so the
+    // packaged .deb carries a real, reachable email and not a fabricated one.
+    maintainer: 'Hush <security@gethush.live>',
+    category: 'Network',
+    // `deb` is intentionally only built on a real Linux host.
+    // electron-builder ships an `fpm` for macOS that produces malformed
+    // .deb files (BSD ar archive, ~96 bytes) — the truthful default is
+    // therefore AppImage on macOS, and AppImage + deb when running from
+    // a Linux host. Override at the CLI (`--linux deb`) if you have
+    // `dpkg-deb` available locally and want to opt in.
+    target: process.platform === 'linux' ? ['deb', 'AppImage'] : ['AppImage'],
   },
   win: {
     target: ['nsis'],
