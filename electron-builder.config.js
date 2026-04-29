@@ -55,6 +55,8 @@ module.exports = {
   ],
   mac: {
     category: 'public.app-category.social-networking',
+    entitlements: 'build/entitlements.mac.plist',
+    entitlementsInherit: 'build/entitlements.mac.plist',
     target: [
       { target: 'dmg', arch: ['arm64', 'x64'] },
       { target: 'zip', arch: ['arm64', 'x64'] },
