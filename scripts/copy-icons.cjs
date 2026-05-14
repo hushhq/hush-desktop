@@ -4,29 +4,21 @@
  * electron-builder and dev-mode use.
  *
  * Source of truth:
- *   - assets/hush.icon               (Apple Icon Composer document,
- *                                     committed with this repo). Its
- *                                     Assets/icon.png is also used as
- *                                     the cross-platform fallback for
- *                                     Linux .png and Windows .ico.
- *
- * The repo-local source keeps desktop packaging self-contained. The
- * historical ../hush.icon path is retained only as a local development
- * fallback for operators who keep brand sources at the monorepo root.
+ *   - ../hush-web/public/icon-512.png when the monorepo checkout is present.
+ *   - assets/hush.icon/Assets/icon.png as the repo-local fallback.
  *
  * Outputs:
  *   - build/icon.png   (always — Linux + Windows derive from this)
- *   - build/icon.icns  (macOS only, when hush.icon + actool available)
+ *   - build/icon.icns  (macOS only, generated from build/icon.png)
  *
- * `actool` only ships on macOS (it's part of the Xcode command line
- * tools). On other hosts the script falls back to PNG-only and
- * electron-builder will auto-derive a less polished .icns from the
- * PNG when packaging mac.
+ * `iconutil` and `sips` only ship on macOS. On other hosts the script
+ * falls back to PNG-only; electron-builder can derive platform icons
+ * from the PNG when cross-building.
  *
  * Re-run is idempotent. Used by the dist:* and dev npm scripts.
  */
 
-const { cpSync, mkdirSync, existsSync } = require('fs');
+const { cpSync, existsSync, mkdirSync, rmSync } = require('fs');
 const { execFileSync } = require('child_process');
 const { join } = require('path');
 
@@ -35,12 +27,9 @@ const repoRoot = join(desktopRoot, '..');
 const buildDir = join(__dirname, '..', 'build');
 
 const localIconSrc = join(desktopRoot, 'assets', 'hush.icon');
-const rootIconSrc = join(repoRoot, 'hush.icon');
-const iconSrc = existsSync(localIconSrc) ? localIconSrc : rootIconSrc;
-
-const localPngSrc = join(iconSrc, 'Assets', 'icon.png');
+const localPngSrc = join(localIconSrc, 'Assets', 'icon.png');
 const webPngSrc = join(repoRoot, 'hush-web', 'public', 'icon-512.png');
-const pngSrc = existsSync(localPngSrc) ? localPngSrc : webPngSrc;
+const pngSrc = existsSync(webPngSrc) ? webPngSrc : localPngSrc;
 const pngDest = join(buildDir, 'icon.png');
 
 const icnsDest = join(buildDir, 'icon.icns');
@@ -55,56 +44,54 @@ if (!existsSync(buildDir)) {
   mkdirSync(buildDir, { recursive: true });
 }
 
+rmSync(icnsDest, { force: true });
 cpSync(pngSrc, pngDest);
 console.log(`brand PNG copied: ${pngSrc} -> ${pngDest}`);
 
 if (process.platform !== 'darwin') {
-  // .icns generation needs Apple's actool. Skip on non-mac hosts —
-  // electron-builder will still pack mac builds with a derived
-  // icns from icon.png if cross-building from Linux/Windows, but
-  // the macOS-canonical Liquid Glass render only happens on macOS.
+  // .icns generation needs Apple's iconutil/sips. Skip on non-mac
+  // hosts; electron-builder can still derive platform icons from
+  // icon.png when cross-building.
   process.exit(0);
 }
 
-if (!existsSync(iconSrc)) {
-  console.warn(`hush.icon not found at: ${localIconSrc} or ${rootIconSrc}`);
-  console.warn('skipping macOS .icns compile; mac will fall back to icon.png.');
-  process.exit(0);
-}
+const iconsetDir = join(buildDir, 'icon.iconset');
+rmSync(iconsetDir, { recursive: true, force: true });
+mkdirSync(iconsetDir, { recursive: true });
 
-// Compile the Icon Composer document to a baked .icns. This is the
-// same path Xcode uses internally.
-const stagingDir = join(buildDir, '.icon-stage');
-const partialPlist = join(stagingDir, 'icon-info.plist');
-if (!existsSync(stagingDir)) {
-  mkdirSync(stagingDir, { recursive: true });
-}
+const iconSizes = [
+  [16, 'icon_16x16.png'],
+  [32, 'icon_16x16@2x.png'],
+  [32, 'icon_32x32.png'],
+  [64, 'icon_32x32@2x.png'],
+  [128, 'icon_128x128.png'],
+  [256, 'icon_128x128@2x.png'],
+  [256, 'icon_256x256.png'],
+  [512, 'icon_256x256@2x.png'],
+  [512, 'icon_512x512.png'],
+  [1024, 'icon_512x512@2x.png'],
+];
 
 try {
-  execFileSync(
-    'actool',
-    [
-      iconSrc,
-      '--compile', stagingDir,
-      '--platform', 'macosx',
-      '--minimum-deployment-target', '10.12',
-      '--app-icon', 'hush',
-      '--output-partial-info-plist', partialPlist,
-      '--output-format', 'human-readable-text',
-    ],
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] },
-  );
+  for (const [size, filename] of iconSizes) {
+    execFileSync('sips', ['-z', String(size), String(size), pngDest, '--out', join(iconsetDir, filename)], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'ignore', 'inherit'],
+    });
+  }
+
+  execFileSync('iconutil', ['-c', 'icns', iconsetDir, '-o', icnsDest], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'ignore', 'inherit'],
+  });
 } catch (err) {
-  console.warn(`actool compile failed (${err.message}); skipping macOS .icns.`);
-  console.warn('mac will fall back to icon.png. Run with macOS Xcode CLT installed for the canonical .icns.');
+  console.warn(`macOS .icns generation failed (${err.message}); mac will fall back to icon.png.`);
   process.exit(0);
 }
 
-const generatedIcns = join(stagingDir, 'hush.icns');
-if (!existsSync(generatedIcns)) {
-  console.warn(`actool ran but did not produce ${generatedIcns}; skipping macOS .icns.`);
+if (!existsSync(icnsDest)) {
+  console.warn(`iconutil ran but did not produce ${icnsDest}; skipping macOS .icns.`);
   process.exit(0);
 }
 
-cpSync(generatedIcns, icnsDest);
-console.log(`brand .icns compiled: ${iconSrc} -> ${icnsDest}`);
+console.log(`brand .icns generated: ${pngDest} -> ${icnsDest}`);

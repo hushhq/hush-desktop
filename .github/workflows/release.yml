@@ -93,7 +93,7 @@ jobs:
             hush-desktop/dist/*.exe
             hush-desktop/dist/*.AppImage
             hush-desktop/dist/*.deb
-            hush-desktop/dist/*.yml
+            hush-desktop/dist/latest*.yml
             hush-desktop/dist/*.blockmap
           if-no-files-found: error
 

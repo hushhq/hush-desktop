@@ -2,9 +2,8 @@
  * electron-builder configuration.
  *
  * Icons: the brand icon is mirrored from hush-web/public/icon-512.png into
- * build/icon.png by `npm run copy-icons`, which the dist:* scripts invoke
- * automatically. electron-builder auto-derives icon.icns / icon.ico from
- * the single 512×512 source.
+ * build/icon.png and build/icon.icns by `npm run copy-icons`, which the
+ * dist:* scripts invoke automatically.
  *
  * Renderer assets: run `npm run copy-renderer` (copies ../hush-web/dist → renderer/)
  * before packaging. electron-builder copies renderer/ into app resources via
@@ -12,12 +11,12 @@
  *
  * Code signing posture: this config does NOT pin a specific identity or
  * configure notarize. electron-builder picks the first available macOS
- * signing identity in the local keychain (typically an Apple Development
- * cert on a developer machine). That is sufficient for local MVP use but
- * is NOT a Developer ID Application signature, and notarization is
- * skipped, so the resulting .app is not safe to hand to external users
- * without first wiring up Developer ID + notarytool. See README.md
- * "macOS distribution status" for the full picture before shipping.
+ * signing identity in the local keychain when auto-discovery is enabled.
+ * In unsigned CI builds, afterPack applies an ad-hoc signature so the app
+ * bundle is at least structurally valid. That is NOT a Developer ID
+ * Application signature, and notarization is skipped, so the resulting
+ * .app is not safe to hand to external users without first wiring up
+ * Developer ID + notarytool. See README.md "macOS distribution status".
  *
  * Note: this file must remain CommonJS (module.exports). The package.json has no
  * "type":"module", so electron-builder loads .js configs as CJS.
@@ -62,6 +61,7 @@ module.exports = {
       { target: 'zip', arch: ['arm64', 'x64'] },
     ],
   },
+  afterPack: 'scripts/after-pack.cjs',
   linux: {
     // Debian's `dpkg-deb` requires a maintainer "Real Name <email>" string.
     // Sourced from the documented contact in hush-web/CONTRIBUTING.md so the

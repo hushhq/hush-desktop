@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const config = require('../electron-builder.config.js');
+const afterPack = require('../scripts/after-pack.cjs');
 
 describe('electron-builder macOS media entitlements', () => {
   it('signs the app and helper processes with the media entitlement file', () => {
@@ -22,6 +23,29 @@ describe('electron-builder macOS media entitlements', () => {
     expect(entitlements).toContain('<key>com.apple.security.device.camera</key>');
     expect(entitlements).toContain('<key>com.apple.security.cs.allow-jit</key>');
     expect(entitlements).toContain('<key>com.apple.security.cs.disable-library-validation</key>');
+  });
+});
+
+describe('electron-builder macOS signing fallback', () => {
+  it('runs the afterPack hook so unsigned CI bundles still get sealed', () => {
+    expect(config.afterPack).toBe('scripts/after-pack.cjs');
+  });
+
+  it('only enables ad-hoc fallback for explicitly unsigned builds', () => {
+    expect(
+      afterPack._private.isExplicitlyUnsignedBuild({
+        CSC_IDENTITY_AUTO_DISCOVERY: 'false',
+      }),
+    ).toBe(true);
+
+    expect(
+      afterPack._private.isExplicitlyUnsignedBuild({
+        CSC_IDENTITY_AUTO_DISCOVERY: 'false',
+        CSC_NAME: 'Developer ID Application: Example',
+      }),
+    ).toBe(false);
+
+    expect(afterPack._private.isExplicitlyUnsignedBuild({})).toBe(false);
   });
 });
 
