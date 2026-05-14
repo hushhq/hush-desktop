@@ -93,6 +93,7 @@ jobs:
             hush-desktop/dist/*.exe
             hush-desktop/dist/*.AppImage
             hush-desktop/dist/*.deb
+            hush-desktop/dist/*.tar.gz
             hush-desktop/dist/latest*.yml
             hush-desktop/dist/*.blockmap
           if-no-files-found: error
@@ -108,6 +109,13 @@ jobs:
         with:
           path: release-assets
           merge-multiple: true
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd release-assets
+          find . -maxdepth 1 -type f ! -name sha256sums.txt -print0 \
+            | sort -z \
+            | xargs -0 sha256sum > sha256sums.txt
 
       - name: Publish release assets
         uses: softprops/action-gh-release@v2

@@ -100,7 +100,7 @@ No vault key access in the renderer. That boundary is explicitly deferred to the
 | Shell | [Electron](https://www.electronjs.org/) ^34 |
 | Build | [electron-vite](https://electron-vite.org/) |
 | Packaging | [electron-builder](https://www.electron.build/) |
-| Auto-update | electron-updater (metadata emitted; runtime not wired) |
+| Auto-update | electron-updater (startup gate and manual checks wired for packaged builds) |
 | Keychain | keytar (wired in next slice — vault PIN storage) |
 
 ---
@@ -135,35 +135,36 @@ What the current `dist:linux` and `dist:win` chains actually produce when run fr
 |-|-|-|-|
 | Linux **AppImage** (`Hush-*.AppImage`) | **Yes** — verified: `ELF 64-bit LSB executable, ARM aarch64`. Run-tested on a Linux machine: not done from this repo. | Yes (same path). | AppImage is not signed; runs as a self-contained executable. Most distros require `chmod +x` and trust comes from out-of-band download channel. |
 | Linux **deb** (`hush-desktop_*.deb`) | **No, intentionally skipped on non-Linux hosts**. The `fpm` shipped with electron-builder for macOS produces a malformed BSD-`ar` archive (~96 bytes) that no Debian/Ubuntu system can install. The config therefore omits `deb` from `linux.target` when `process.platform !== 'linux'` and only emits AppImage on macOS hosts. | Yes — `dpkg-deb` is the right tool and `fpm` works correctly on Linux. | Unsigned `.deb`. Distros prompt for trust on first install. |
+| Linux **tar.gz** (`Hush-*.tar.gz`) | No, intentionally skipped on non-Linux hosts with the rest of the Linux system-package targets. | Yes. This is the package-maintainer fallback for AUR and other recipes that prefer unpacked application trees over AppImage extraction. | Unsigned archive. Trust comes from GitHub Release provenance and `sha256sums.txt`. |
 | Windows **nsis** (`Hush Setup *.exe`) | **Yes** — verified: `PE32 executable (GUI) Intel 80386, for MS Windows, Nullsoft Installer self-extracting archive` (the launcher) and `PE32+ executable (GUI) Aarch64, for MS Windows` (the inner `Hush.exe`). electron-builder downloads its own Wine, winCodeSign, and NSIS toolchain into the dependency cache; no system Wine is required on macOS hosts. Run-tested on a Windows machine: not done from this repo. | Yes (same path). | The build is **unsigned** ("no signing info identified, signing is skipped"). Windows SmartScreen will warn on first run. Authenticode signing requires a code-signing certificate (EV or OV) and `signtool.exe` configuration that this repo does not yet wire. |
+| Windows **portable** (`Hush *.exe`) | Yes, same toolchain as the NSIS target. | Yes. | Unsigned executable. Useful for locked-down machines where installers are blocked, but still subject to SmartScreen without Authenticode signing. |
 
 What this means in practice:
 
-- **Linux AppImage and Windows nsis can both be built from a macOS host today.** This was directly exercised against the current repo state and the artefacts are real PE / ELF executables.
-- **Linux deb requires a real Linux host (or Docker)** because the `fpm` macOS binary that electron-builder bundles does not produce a valid Debian package archive. The config opts out of deb on non-Linux hosts to avoid shipping the silent 96-byte malformed file.
+- **Linux AppImage and Windows nsis/portable can both be built from a macOS host today.** This was directly exercised against the current repo state and the artefacts are real PE / ELF executables.
+- **Linux deb and tar.gz require a real Linux host (or Docker)** because the `fpm` macOS binary that electron-builder bundles does not produce a valid Debian package archive. The config opts out of deb on non-Linux hosts to avoid shipping the silent 96-byte malformed file.
 - **Windows nsis is unsigned.** Microsoft SmartScreen will warn on first launch the same way macOS Gatekeeper does without a Developer ID cert. Signing requires an external certificate (typically EV from a CA like DigiCert / Sectigo) and is its own slice — see "Deferred".
 
 ---
 
 ## Update path status (MVP)
 
-The repo already produces the metadata that an `electron-updater` flow expects, but the runtime side of that flow is intentionally NOT wired. As above, the four states are easy to confuse — keep them separate:
+The repo produces the metadata that `electron-updater` expects and now wires the runtime update check for packaged builds. As above, the states are easy to confuse — keep them separate:
 
 | Layer | What it means | Current state |
 |-|-|-|
 | **Updater dependency declared** | `electron-updater` is in `package.json`. | **Yes** (`electron-updater: ^6.3.0`). |
-| **Update metadata files emitted by packaging** | `electron-builder` writes `app-update.yml` into the packaged app's `Resources/` and writes `latest-*.yml` (`latest-mac.yml`, `latest-linux-arm64.yml`, `latest.yml`) alongside the build artefacts in `dist/`. These are the files an updater client reads to decide whether a new release exists. | **Yes**. The shipped `app-update.yml` reads `provider: github / owner: hushhq / repo: hush-desktop` (auto-derived from the git remote — no `publish` config in `electron-builder.config.js`). |
-| **App actually checks a live feed at runtime** | Main-process code calls `autoUpdater.checkForUpdates()` (or equivalent) and surfaces `update-available` / `update-downloaded` events. | **No**. There is no `autoUpdater` reference anywhere under `src/main/`. The packaged app never queries GitHub for updates and never prompts the user. |
-| **App successfully downloads and applies updates** | A real release is published, the running app downloads it, `electron-updater` verifies the signature and stages it, and the next launch comes up on the new version. | **No**. Even if the runtime check were wired, `https://api.github.com/repos/hushhq/hush-desktop/releases` currently returns `[]` — the GitHub repo exists but has no published releases yet, so any feed query would resolve to "no update". And the macOS bundle is signed with an Apple Development cert, not a Developer ID, so `electron-updater`'s signature requirement could not currently be satisfied for a real downloaded `.zip` even if releases existed. |
+| **Update metadata files emitted by packaging** | `electron-builder` writes `app-update.yml` into the packaged app's `Resources/` and writes `latest-*.yml` (`latest-mac.yml`, `latest-linux-arm64.yml`, `latest.yml`) alongside the build artefacts in `dist/`. These are the files an updater client reads to decide whether a new release exists. | **Yes**. The shipped `app-update.yml` reads `provider: github / owner: hushhq / repo: hush-desktop` from `electron-builder.config.js`. |
+| **Startup update check** | Main-process code calls `autoUpdater.checkForUpdates()` before the renderer can reveal PIN/auth UI. | **Yes, packaged builds only.** The startup availability check has a hard 3 second fail-open timeout so offline users can still read local IndexedDB history. |
+| **Manual update checks** | Native menu/tray actions ask the main process to run a background update check. | **Yes.** If no update is available the app reports that state without blocking the UI; if an update is available the normal download/install gate takes over. |
+| **App successfully downloads and applies updates** | A real release is published, the running app downloads it, `electron-updater` verifies the signature and stages it, and the next launch comes up on the new version. | **Partially proven.** The runtime wiring exists, but end-to-end update success depends on a published GitHub Release with matching updater metadata and platform signing that the OS/updater accepts. |
 
-Net effect: **the desktop wrapper today is a manually-distributed, manually-updated binary.** Users on the MVP build will not be auto-prompted to update. The intended GitHub-releases distribution layout exists in metadata, but several real prerequisites are missing before a runtime updater can be safely wired:
+Net effect: **the desktop wrapper now has a real updater path for packaged builds**, but public distribution is still blocked on signing and notarization quality:
 
-1. A first published release on `github.com/hushhq/hush-desktop` (the `latest-*.yml` + the corresponding `.zip` / `.dmg` / `.AppImage` / `.exe` uploaded as release assets).
-2. A signing identity that `electron-updater` can verify — Developer ID Application (macOS) and an Authenticode certificate (Windows). The current Apple Development cert is not sufficient.
-3. A privacy-conscious update UX. Hush is a privacy-focused product; a silent on-launch check that sends a request to `api.github.com` on every cold start is a tracking surface that must be opt-in or at least disclosed in the user settings before being enabled by default.
-4. Notarized macOS artefacts (see "macOS distribution status") — the Sparkle/Squirrel chain that `electron-updater` drives on macOS expects notarized + stapled bundles.
-
-A future updater slice should land the wiring (`autoUpdater.checkForUpdatesAndNotify()` or an explicit user-triggered check, with proper event handling and error logging), the privacy UX, and the corresponding notes in user-facing settings — none of which is honest to do in one slice without those prerequisites in place.
+1. A published release on `github.com/hushhq/hush-desktop` with installers, `latest*.yml`, `.blockmap`, and `sha256sums.txt`.
+2. A signing identity that `electron-updater` can verify — Developer ID Application (macOS) and an Authenticode certificate (Windows). The current Apple Development cert is not sufficient for public distribution.
+3. Notarized macOS artefacts (see "macOS distribution status") — the update chain that `electron-updater` drives on macOS expects notarized + stapled bundles.
+4. Real packaged-app verification on macOS, Windows, and Linux after each release.
 
 Release distribution is documented in [`docs/release-distribution.md`](docs/release-distribution.md). GitHub Releases are the SSOT for desktop binaries, update metadata, and future package-manager manifests.
 
@@ -172,11 +173,11 @@ Release distribution is documented in [`docs/release-distribution.md`](docs/rele
 ## Deferred (next slice)
 
 - **Vault wrapping key via OS keychain**: `keytar` integration for macOS Keychain / Windows Credential Store / libsecret. The IPC channel shape is reserved in `src/shared/ipc-channels.ts`; the renderer must never hold key material directly.
-- **Auto-update wiring**: see the "Update path status" table above. Metadata is emitted, runtime is not wired, no releases published, signing prerequisites unmet.
+- **Auto-update release proof**: see the "Update path status" table above. Runtime wiring exists, but public confidence still depends on real GitHub Releases, production signing, notarization, and cross-platform packaged-app verification.
 - **CSP header**: a strict `Content-Security-Policy` for the `app://` protocol handler once all asset origins are known.
 - **macOS production code signing + notarization**: see the "macOS distribution status" table above.
 - **Windows Authenticode signing**: an EV / OV code-signing certificate plus `signtool.exe` wiring in `win.certificateFile` / `win.certificatePassword` (or the equivalent CSC env vars). Without it, Windows SmartScreen will warn on first launch.
-- **Linux deb on non-Linux hosts**: a Docker-based packaging step (or a Linux CI runner) so the `dpkg-deb` invocation in `fpm` happens on a real Linux kernel and produces a valid `.deb`.
+- **Linux deb/tar.gz on non-Linux hosts**: a Docker-based packaging step if local non-Linux release builds ever need to match the Linux CI output.
 
 ---
 

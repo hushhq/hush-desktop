@@ -87,13 +87,13 @@ module.exports = {
     // `deb` is intentionally only built on a real Linux host.
     // electron-builder ships an `fpm` for macOS that produces malformed
     // .deb files (BSD ar archive, ~96 bytes) — the truthful default is
-    // therefore AppImage on macOS, and AppImage + deb when running from
+    // therefore AppImage on macOS, and AppImage + deb + tar.gz when running from
     // a Linux host. Override at the CLI (`--linux deb`) if you have
     // `dpkg-deb` available locally and want to opt in.
-    target: process.platform === 'linux' ? ['deb', 'AppImage'] : ['AppImage'],
+    target: process.platform === 'linux' ? ['deb', 'AppImage', 'tar.gz'] : ['AppImage'],
   },
   win: {
-    target: ['nsis'],
+    target: ['nsis', 'portable'],
   },
   nsis: {
     oneClick: false,
