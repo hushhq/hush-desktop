@@ -1,26 +1,27 @@
 import { describe, it, expect } from 'vitest';
-import { join } from 'path';
+import { resolve } from 'path';
 import { resolveRendererPath } from '../src/main/renderer-path';
 
 const ROOT = '/app/renderer';
+const expectedPath = (...segments: string[]) => resolve(ROOT, ...segments);
 
 describe('resolveRendererPath', () => {
   it('resolves a valid HTML path', () => {
-    expect(resolveRendererPath(ROOT, '/index.html')).toBe(join(ROOT, 'index.html'));
+    expect(resolveRendererPath(ROOT, '/index.html')).toBe(expectedPath('index.html'));
   });
 
   it('resolves a nested asset path', () => {
-    expect(resolveRendererPath(ROOT, '/assets/main.js')).toBe(join(ROOT, 'assets/main.js'));
+    expect(resolveRendererPath(ROOT, '/assets/main.js')).toBe(expectedPath('assets/main.js'));
   });
 
   it('resolves a wasm asset path', () => {
     expect(resolveRendererPath(ROOT, '/assets/hush_crypto_bg.wasm')).toBe(
-      join(ROOT, 'assets/hush_crypto_bg.wasm'),
+      expectedPath('assets/hush_crypto_bg.wasm'),
     );
   });
 
   it('falls back to index.html for SPA routes (no extension)', () => {
-    expect(resolveRendererPath(ROOT, '/channels/123')).toBe(join(ROOT, 'index.html'));
+    expect(resolveRendererPath(ROOT, '/channels/123')).toBe(expectedPath('index.html'));
   });
 
   it('rejects path traversal with ..',  () => {
@@ -33,7 +34,7 @@ describe('resolveRendererPath', () => {
 
   it('strips query string before resolving', () => {
     expect(resolveRendererPath(ROOT, '/assets/main.js?v=abc123')).toBe(
-      join(ROOT, 'assets/main.js'),
+      expectedPath('assets/main.js'),
     );
   });
 });
