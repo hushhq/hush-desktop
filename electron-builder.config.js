@@ -83,4 +83,12 @@ module.exports = {
     oneClick: false,
     allowToChangeInstallationDirectory: true,
   },
+  publish: [
+    {
+      provider: 'github',
+      owner: 'hushhq',
+      repo: 'hush-desktop',
+      releaseType: 'release',
+    },
+  ],
 };

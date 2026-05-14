@@ -1,0 +1,94 @@
+# Desktop Release Distribution
+
+GitHub Releases are the single source of truth for Hush desktop binaries.
+
+The same release assets feed:
+
+- direct downloads from the website;
+- `electron-updater` desktop update checks;
+- package-manager manifests such as Homebrew, WinGet, Snap, and AUR.
+
+Do not publish binaries to a separate bucket unless that bucket also becomes the updater feed. Split feeds create downgrade and compatibility risks.
+
+## Release flow
+
+1. Merge `hush-desktop` and `hush-web` release candidates to their release branches.
+2. Create a semver tag in `hush-desktop`, for example:
+
+   ```sh
+   git tag v0.8.0-alpha.1
+   git push origin v0.8.0-alpha.1
+   ```
+
+3. The `Release Desktop` workflow builds macOS, Windows, and Linux artifacts.
+4. The workflow uploads all installer files, update metadata files, and blockmaps to the GitHub Release.
+
+Required release assets:
+
+| Platform | User-facing artifact | Updater metadata |
+|-|-|-|
+| macOS | `.dmg` for direct download, `.zip` for updater | `latest-mac.yml`, `.blockmap` |
+| Windows | `.exe` NSIS installer | `latest.yml`, `.blockmap` |
+| Linux | `.AppImage`, `.deb` | `latest-linux.yml` or arch-specific metadata, `.blockmap` where emitted |
+
+## Update payloads
+
+`electron-builder` emits `.blockmap` files alongside supported artifacts. `electron-updater` can use those blockmaps for differential downloads where the target platform and artifact type support it.
+
+Do not promise that every platform will always download only a delta. The UI must display the real `download-progress` event from `electron-updater`; that event is the authoritative source for transferred bytes, percent, and speed.
+
+## Signing state
+
+The workflow accepts signing secrets but can run without them:
+
+| Secret | Purpose |
+|-|-|
+| `MAC_CSC_LINK` | Base64-encoded Developer ID Application certificate |
+| `MAC_CSC_KEY_PASSWORD` | Certificate password |
+| `APPLE_ID` | Apple notarization account |
+| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific Apple password |
+| `APPLE_TEAM_ID` | Apple team id |
+| `WIN_CSC_LINK` | Base64-encoded Windows Authenticode certificate |
+| `WIN_CSC_KEY_PASSWORD` | Certificate password |
+
+Unsigned artifacts are acceptable for internal development, but they are not acceptable as a polished public distribution path:
+
+- macOS users will see Gatekeeper warnings without Developer ID plus notarization;
+- Windows users will see SmartScreen warnings without Authenticode signing;
+- package managers may reject or flag unsigned submissions.
+
+## Desktop updater policy
+
+During early launch, the desktop app should enforce update checks at startup without breaking offline access:
+
+- packaged builds check for updates during startup;
+- the startup check has a hard 3 second timeout;
+- timeout, GitHub outage, DNS failure, or offline network state must skip the update and continue opening the local app;
+- if an update is available, the app may block interactive use while downloading and installing it;
+- the updater UI must show current version, target version, and real `download-progress` values;
+- failed downloads must continue into the old local app, not leave a black screen.
+
+This policy protects local IndexedDB history access. A stale client is better than an inaccessible client when the user is offline.
+
+## Website downloads
+
+The website should not hardcode installer URLs. Download buttons should resolve the latest release from:
+
+```text
+https://api.github.com/repos/hushhq/hush-desktop/releases/latest
+```
+
+Use the asset names to select the right installer for the user's platform. Display the release tag and checksum/hash metadata when available.
+
+## Package-manager plan
+
+All package-manager recipes should point at the GitHub Release assets.
+
+| Manager | Source |
+|-|-|
+| Homebrew | Hush tap formula/cask, URL and SHA256 from latest GitHub Release |
+| WinGet | Manifest PR referencing the GitHub Release `.exe` |
+| Snap | Snapcraft recipe sourcing the Linux artifact or building from the release tag |
+| AUR | PKGBUILD sourcing the GitHub Release artifact and checksum |
+
+Do not submit package-manager manifests until the first real GitHub Release exists. The manifests need stable asset names and hashes from that release.

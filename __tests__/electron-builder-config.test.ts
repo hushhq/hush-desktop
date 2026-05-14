@@ -24,3 +24,16 @@ describe('electron-builder macOS media entitlements', () => {
     expect(entitlements).toContain('<key>com.apple.security.cs.disable-library-validation</key>');
   });
 });
+
+describe('electron-builder update feed', () => {
+  it('publishes release metadata to the public GitHub Releases feed', () => {
+    expect(config.publish).toEqual([
+      {
+        provider: 'github',
+        owner: 'hushhq',
+        repo: 'hush-desktop',
+        releaseType: 'release',
+      },
+    ]);
+  });
+});

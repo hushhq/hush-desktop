@@ -165,6 +165,8 @@ Net effect: **the desktop wrapper today is a manually-distributed, manually-upda
 
 A future updater slice should land the wiring (`autoUpdater.checkForUpdatesAndNotify()` or an explicit user-triggered check, with proper event handling and error logging), the privacy UX, and the corresponding notes in user-facing settings — none of which is honest to do in one slice without those prerequisites in place.
 
+Release distribution is documented in [`docs/release-distribution.md`](docs/release-distribution.md). GitHub Releases are the SSOT for desktop binaries, update metadata, and future package-manager manifests.
+
 ---
 
 ## Deferred (next slice)

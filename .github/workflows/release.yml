@@ -1,0 +1,118 @@
+name: Release Desktop
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      hush_web_ref:
+        description: 'hush-web ref to build into the desktop renderer'
+        required: false
+        default: 'main'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: mac
+            runner: macos-latest
+            script: dist:mac
+            artifact: hush-desktop-mac
+          - platform: windows
+            runner: windows-latest
+            script: dist:win
+            artifact: hush-desktop-windows
+          - platform: linux
+            runner: ubuntu-latest
+            script: dist:linux
+            artifact: hush-desktop-linux
+
+    steps:
+      - name: Checkout hush-desktop
+        uses: actions/checkout@v4
+        with:
+          path: hush-desktop
+
+      - name: Checkout hush-web
+        uses: actions/checkout@v4
+        with:
+          repository: hushhq/hush-web
+          ref: ${{ inputs.hush_web_ref || 'main' }}
+          path: hush-web
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            hush-desktop/package-lock.json
+            hush-web/package-lock.json
+
+      - name: Install hush-web dependencies
+        run: npm ci
+        working-directory: hush-web
+
+      - name: Install hush-desktop dependencies
+        run: npm ci
+        working-directory: hush-desktop
+
+      - name: Typecheck desktop
+        run: npm run typecheck
+        working-directory: hush-desktop
+
+      - name: Test desktop
+        run: npm test
+        working-directory: hush-desktop
+
+      - name: Build desktop artifacts
+        run: npm run ${{ matrix.script }}
+        working-directory: hush-desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ matrix.platform == 'mac' && secrets.MAC_CSC_LINK || matrix.platform == 'windows' && secrets.WIN_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'mac' && secrets.MAC_CSC_KEY_PASSWORD || matrix.platform == 'windows' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            hush-desktop/dist/*.dmg
+            hush-desktop/dist/*.zip
+            hush-desktop/dist/*.exe
+            hush-desktop/dist/*.AppImage
+            hush-desktop/dist/*.deb
+            hush-desktop/dist/*.yml
+            hush-desktop/dist/*.blockmap
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') || contains(github.ref_name, 'mvp') }}
+          generate_release_notes: true
+          files: release-assets/*
