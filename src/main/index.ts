@@ -1,4 +1,4 @@
-import { app, BrowserWindow, nativeImage, session, Tray } from 'electron';
+import { app, autoUpdater as electronAutoUpdater, BrowserWindow, nativeImage, session, Tray } from 'electron';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { registerAppScheme, registerAppProtocol } from './protocol';
@@ -95,6 +95,13 @@ app.on('second-instance', () => {
 app.on('before-quit', () => {
   // Any code path that reaches `app.quit()` (tray menu, Cmd-Q, OS shutdown)
   // flips the lifecycle flag so the close handler stops intercepting.
+  lifecycle.markQuitting();
+});
+
+electronAutoUpdater.on('before-quit-for-update', () => {
+  // electron-updater/Squirrel emits this update-specific quit path before
+  // closing windows. Treat it like a real quit so hide-to-tray does not
+  // intercept the close event and leave the downloaded update pending.
   lifecycle.markQuitting();
 });
 
