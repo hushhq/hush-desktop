@@ -22,10 +22,14 @@
  * "type":"module", so electron-builder loads .js configs as CJS.
  */
 
+const isReleaseBuild = process.env.HUSH_DESKTOP_RELEASE_BUILD === '1';
+const appId = isReleaseBuild ? 'live.gethush.desktop' : 'live.gethush.desktop.local';
+const productName = isReleaseBuild ? 'Hush' : 'Hush Local';
+
 /** @type {import('electron-builder').Configuration} */
 module.exports = {
-  appId: 'live.gethush.desktop',
-  productName: 'Hush',
+  appId,
+  productName,
   copyright: 'Copyright 2026 Hush',
   directories: {
     buildResources: 'build',

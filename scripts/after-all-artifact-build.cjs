@@ -4,10 +4,10 @@
  * electron-builder may recreate the output directory during packaging, so the
  * Spotlight marker is written again after artifacts are complete.
  */
-const { markDistPrivate } = require('./mark-dist-private.cjs');
+const { prepareDistDirectory } = require('./mark-dist-private.cjs');
 
 exports.default = async function afterAllArtifactBuild(context) {
   const projectDir = context?.packager?.projectDir ?? process.cwd();
-  markDistPrivate(projectDir);
+  prepareDistDirectory(projectDir);
   return [];
 };
