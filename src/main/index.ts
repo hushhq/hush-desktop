@@ -7,8 +7,10 @@ import { registerIpcHandlers } from './ipc/handlers';
 import { registerMediaHandlers } from './media-handlers';
 import { logBootSnapshot } from './diagnostics';
 import { createLifecycleState } from './lifecycle';
+import { installAppMenu } from './appMenu';
 import { createAppTray } from './tray';
 import { startDesktopUpdater } from './update/desktopUpdaterFactory';
+import { requestDesktopUpdateCheck } from './update/desktopUpdaterRegistry';
 
 // registerAppScheme must run before app.whenReady()
 registerAppScheme();
@@ -78,12 +80,10 @@ function revealMainWindow(): void {
 
 function spawnMainWindow(): void {
   mainWindow = createMainWindow(lifecycle);
-  // Kick off the packaged-build auto-update gate once the renderer is hosted.
-  // No-ops in dev because `startDesktopUpdater` checks `app.isPackaged`.
-  // Wait for ready-to-show so webContents.send pushes after the renderer mounts.
-  mainWindow.webContents.once('did-finish-load', () => {
-    if (mainWindow) startDesktopUpdater(mainWindow);
-  });
+}
+
+function checkForUpdatesFromShell(): void {
+  void requestDesktopUpdateCheck(app.getVersion());
 }
 
 app.on('second-instance', () => {
@@ -121,10 +121,23 @@ app.whenReady().then(() => {
   // there is no record of permission decisions or boot state.
   logBootSnapshot({ devRendererUrl: process.env.HUSH_WEB_URL ?? null });
   applyDevDockIconIfNeeded();
+  // Start the auto-update gate BEFORE the renderer is created so the very
+  // first `getDesktopUpdateState()` IPC call from the renderer returns a
+  // `checking` snapshot — otherwise the renderer can briefly hydrate as
+  // `idle` and unblock the PIN/auth surface underneath the update boundary.
+  // No-ops in dev because `startDesktopUpdater` checks `app.isPackaged`.
+  startDesktopUpdater(getMainWindow);
+  installAppMenu({
+    onCheckForUpdates: checkForUpdatesFromShell,
+  }, {
+    appName: app.name || 'Hush',
+    platform: process.platform,
+  });
   spawnMainWindow();
 
   appTray = createAppTray({
     onShow: revealMainWindow,
+    onCheckForUpdates: checkForUpdatesFromShell,
     onQuit: () => {
       lifecycle.markQuitting();
       app.quit();

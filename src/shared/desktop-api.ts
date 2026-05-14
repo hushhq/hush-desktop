@@ -56,6 +56,12 @@ export interface DesktopApi {
    */
   getDesktopUpdateState(): Promise<DesktopUpdateState>;
   /**
+   * Requests an explicit user-initiated update check. This is used by native
+   * menus, tray menus, and command-palette actions. The main process owns the
+   * updater; the renderer only receives the resulting state snapshot.
+   */
+  checkForDesktopUpdates(): Promise<DesktopUpdateState>;
+  /**
    * Subscribes to push updates of the desktop auto-update state. The listener
    * fires for every state transition in main. Returns an unsubscribe function
    * — call it on component unmount to remove the underlying IPC listener.

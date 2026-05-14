@@ -11,7 +11,10 @@ import {
   measureInstanceHealth,
   type FetchLike,
 } from '../network/measureInstanceHealth';
-import { getDesktopUpdateStateSnapshot } from '../update/desktopUpdaterRegistry';
+import {
+  getDesktopUpdateStateSnapshot,
+  requestDesktopUpdateCheck,
+} from '../update/desktopUpdaterRegistry';
 
 /**
  * Two-level resize floor: tall for the pre-login LinkDevice surface,
@@ -119,6 +122,9 @@ export function registerIpcHandlers(): void {
   );
   ipcMain.handle(IPC_CHANNEL.UPDATE_GET_STATE, () =>
     getDesktopUpdateStateSnapshot(app.getVersion()),
+  );
+  ipcMain.handle(IPC_CHANNEL.UPDATE_CHECK_NOW, () =>
+    requestDesktopUpdateCheck(app.getVersion()),
   );
 }
 

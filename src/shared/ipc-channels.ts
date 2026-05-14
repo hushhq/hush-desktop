@@ -6,6 +6,7 @@ export const IPC_CHANNEL = {
   WINDOW_SET_MIN_FLOOR: 'window:set-min-floor',
   NETWORK_MEASURE_INSTANCE_HEALTH: 'network:measure-instance-health',
   UPDATE_GET_STATE: 'update:get-state',
+  UPDATE_CHECK_NOW: 'update:check-now',
   UPDATE_STATE_EVENT: 'update:state',
 } as const;
 

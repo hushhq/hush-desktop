@@ -21,6 +21,8 @@ const TRAY_ICON_SIZE = 18;
 export interface TrayHooks {
   /** Show & focus the existing window. Must not reload the renderer. */
   onShow: () => void;
+  /** User-initiated update check. */
+  onCheckForUpdates: () => void;
   /** Real quit. The caller is responsible for flipping the lifecycle flag. */
   onQuit: () => void;
 }
@@ -35,6 +37,7 @@ export interface TrayHooks {
 export function buildTrayMenuTemplate(hooks: TrayHooks): MenuItemConstructorOptions[] {
   return [
     { label: 'Show Hush', click: hooks.onShow },
+    { label: 'Check for Updates...', click: hooks.onCheckForUpdates },
     { type: 'separator' },
     { label: 'Quit Hush', click: hooks.onQuit },
   ];

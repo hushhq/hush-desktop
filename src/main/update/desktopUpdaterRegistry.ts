@@ -35,3 +35,14 @@ export function getDesktopUpdateStateSnapshot(currentVersion: string): DesktopUp
   if (controller) return controller.getState();
   return buildIdleDesktopUpdateState(currentVersion);
 }
+
+/**
+ * User-initiated update check entry point shared by IPC, native menus, and the
+ * tray menu. Dev builds or older boot paths without an active controller fail
+ * open to the current idle snapshot.
+ */
+export function requestDesktopUpdateCheck(currentVersion: string): Promise<DesktopUpdateState> {
+  const controller = getActiveDesktopUpdater();
+  if (!controller) return Promise.resolve(buildIdleDesktopUpdateState(currentVersion));
+  return controller.requestManualCheck();
+}

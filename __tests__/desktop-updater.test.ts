@@ -123,6 +123,19 @@ describe('DesktopUpdaterController', () => {
     expect(h.updater.checkForUpdatesCalls).toBe(1);
   });
 
+  it('Start_SynchronouslyTransitionsToChecking_BeforeAnyEvent', () => {
+    h.controller.start();
+    // No timer fired, no updater event emitted yet.
+    expect(h.controller.getState().phase).toBe('checking');
+  });
+
+  it('Start_EmitsCheckingSnapshotToSubscribers_BeforeFirstEvent', () => {
+    expect(h.states).toEqual([]);
+    h.controller.start();
+    expect(h.states.length).toBeGreaterThanOrEqual(1);
+    expect(h.states[0]?.phase).toBe('checking');
+  });
+
   it('Start_TimesOutAt3s_TransitionsToSkippedFailOpen', () => {
     h.controller.start();
     h.timer.fireLatest();
@@ -293,13 +306,76 @@ describe('DesktopUpdaterController', () => {
     h.updater.emit('download-progress', { percent: 10, transferred: 1, total: 10, bytesPerSecond: 1 });
     unsubscribe();
     h.updater.emit('update-downloaded', {});
-    expect(received).toEqual(['checking', 'downloading']);
+    // start() emits checking, update-available re-emits checking with targetVersion,
+    // download-progress emits downloading. After unsubscribe, downloaded is dropped.
+    expect(received).toEqual(['checking', 'checking', 'downloading']);
   });
 
   it('Start_IsIdempotent_DoesNotIssueDoubleCheck', () => {
     h.controller.start();
     h.controller.start();
     expect(h.updater.checkForUpdatesCalls).toBe(1);
+  });
+
+  it('ManualCheck_NoUpdate_RunsInBackgroundAndResolvesSkipped', async () => {
+    h.controller.start();
+    h.updater.emit('update-not-available', {});
+    expect(h.controller.getState().phase).toBe('skipped');
+    h.states.length = 0;
+
+    const pending = h.controller.requestManualCheck();
+    expect(h.updater.checkForUpdatesCalls).toBe(2);
+    expect(h.states).toEqual([]);
+
+    h.updater.emit('update-not-available', {});
+    const result = await pending;
+    expect(result.phase).toBe('skipped');
+    expect(result.error).toBe('no-update');
+  });
+
+  it('ManualCheck_UpdateAvailable_TransitionsToGateAndStartsDownload', async () => {
+    h.controller.start();
+    h.updater.emit('update-not-available', {});
+
+    const pending = h.controller.requestManualCheck();
+    h.updater.emit('update-available', { version: '0.1.2-mvp' } as UpdateInfoLike);
+    await flushMicrotasks();
+
+    const result = await pending;
+    expect(result.phase).toBe('checking');
+    expect(result.targetVersion).toBe('0.1.2-mvp');
+    expect(h.controller.getState().phase).toBe('checking');
+    expect(h.updater.downloadUpdateCalls).toBe(1);
+  });
+
+  it('ManualCheck_Timeout_ResolvesSkippedWithoutOpeningGate', async () => {
+    h.controller.start();
+    h.updater.emit('update-not-available', {});
+    h.states.length = 0;
+
+    const pending = h.controller.requestManualCheck();
+    h.timer.fireLatest();
+    const result = await pending;
+
+    expect(result.phase).toBe('skipped');
+    expect(result.error).toBe('timeout');
+    expect(h.states.map((s) => s.phase)).toEqual(['skipped']);
+  });
+
+  it('ManualCheck_AfterDownloadError_AllowsRetry', async () => {
+    h.controller.start();
+    h.updater.emit('update-available', { version: '0.1.1-mvp' } as UpdateInfoLike);
+    await flushMicrotasks();
+    h.updater.emit('error', new Error('download failed'));
+    expect(h.controller.getState().phase).toBe('error');
+
+    const pending = h.controller.requestManualCheck();
+    expect(h.updater.checkForUpdatesCalls).toBe(2);
+    h.updater.emit('update-not-available', {});
+
+    const result = await pending;
+    expect(result.phase).toBe('skipped');
+    expect(result.error).toBe('no-update');
   });
 
   it('LateProgressAfterDownloaded_IsIgnored', async () => {

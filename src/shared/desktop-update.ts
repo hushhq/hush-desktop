@@ -7,9 +7,19 @@
  * field needs an explicit reason and a renderer test.
  */
 export type DesktopUpdatePhase =
-  /** Initial state before any check has been issued. Gate hidden. */
+  /**
+   * No check has been issued yet. Gate hidden. In packaged builds this state
+   * is short-lived — the controller transitions out of `idle` synchronously
+   * from `start()` so the renderer never observes it once an update check
+   * has been initiated. Browser builds (no desktop bridge) keep it forever.
+   */
   | 'idle'
-  /** Update was confirmed available within the startup budget. Download starting. Gate visible. */
+  /**
+   * Startup availability check is in flight, OR an update has been confirmed
+   * available and the download is starting but no `download-progress` event
+   * has arrived yet. Gate visible. The renderer treats both sub-states the
+   * same: full-screen "Checking for desktop update..." surface.
+   */
   | 'checking'
   /** Update download is in flight with measurable progress. Gate visible. */
   | 'downloading'

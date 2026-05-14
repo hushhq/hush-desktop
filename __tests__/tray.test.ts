@@ -5,33 +5,53 @@ describe('buildTrayMenuTemplate', () => {
   it('lists Show Hush, a separator, and Quit Hush in that order', () => {
     const template = buildTrayMenuTemplate({
       onShow: () => {},
+      onCheckForUpdates: () => {},
       onQuit: () => {},
     });
 
-    expect(template).toHaveLength(3);
+    expect(template).toHaveLength(4);
     expect(template[0]).toMatchObject({ label: 'Show Hush' });
-    expect(template[1]).toMatchObject({ type: 'separator' });
-    expect(template[2]).toMatchObject({ label: 'Quit Hush' });
+    expect(template[1]).toMatchObject({ label: 'Check for Updates...' });
+    expect(template[2]).toMatchObject({ type: 'separator' });
+    expect(template[3]).toMatchObject({ label: 'Quit Hush' });
   });
 
   it('wires the Show Hush click directly to the onShow hook', () => {
     const onShow = vi.fn();
+    const onCheckForUpdates = vi.fn();
     const onQuit = vi.fn();
-    const template = buildTrayMenuTemplate({ onShow, onQuit });
+    const template = buildTrayMenuTemplate({ onShow, onCheckForUpdates, onQuit });
     template[0].click?.(
       undefined as never,
       undefined as never,
       undefined as never,
     );
     expect(onShow).toHaveBeenCalledOnce();
+    expect(onCheckForUpdates).not.toHaveBeenCalled();
+    expect(onQuit).not.toHaveBeenCalled();
+  });
+
+  it('wires the Check for Updates click directly to the update hook', () => {
+    const onShow = vi.fn();
+    const onCheckForUpdates = vi.fn();
+    const onQuit = vi.fn();
+    const template = buildTrayMenuTemplate({ onShow, onCheckForUpdates, onQuit });
+    template[1].click?.(
+      undefined as never,
+      undefined as never,
+      undefined as never,
+    );
+    expect(onCheckForUpdates).toHaveBeenCalledOnce();
+    expect(onShow).not.toHaveBeenCalled();
     expect(onQuit).not.toHaveBeenCalled();
   });
 
   it('wires the Quit Hush click directly to the onQuit hook', () => {
     const onShow = vi.fn();
+    const onCheckForUpdates = vi.fn();
     const onQuit = vi.fn();
-    const template = buildTrayMenuTemplate({ onShow, onQuit });
-    template[2].click?.(
+    const template = buildTrayMenuTemplate({ onShow, onCheckForUpdates, onQuit });
+    template[3].click?.(
       undefined as never,
       undefined as never,
       undefined as never,

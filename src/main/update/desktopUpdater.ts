@@ -55,6 +55,7 @@ export interface ProgressInfoLike {
 }
 
 export type DesktopUpdateListener = (state: DesktopUpdateState) => void;
+type AvailabilityResolver = (state: DesktopUpdateState) => void;
 
 export interface DesktopUpdaterControllerOptions {
   readonly updater: UpdaterLike;
@@ -85,8 +86,10 @@ export class DesktopUpdaterController {
 
   private availabilitySettled = false;
   private downloadStarted = false;
+  private availabilityCheckInFlight = false;
   private startCalled = false;
   private timeoutHandle: unknown = null;
+  private readonly availabilityResolvers: AvailabilityResolver[] = [];
 
   constructor(opts: DesktopUpdaterControllerOptions) {
     this.updater = opts.updater;
@@ -103,18 +106,62 @@ export class DesktopUpdaterController {
    * Begins the startup update check. Safe to call exactly once per controller.
    * Concurrent calls are ignored so accidental re-entry from window lifecycle
    * code cannot start a second check while one is in flight.
+   *
+   * The controller transitions into `checking` SYNCHRONOUSLY so the renderer's
+   * first `getDesktopUpdateState()` snapshot cannot observe an `idle` value in
+   * packaged builds — `idle` only means "no check has been issued yet" and
+   * leaving that visible to the renderer would briefly unblock the PIN/auth
+   * gate underneath the update boundary.
    */
   start(): void {
     if (this.startCalled) return;
     this.startCalled = true;
 
+    this.beginAvailabilityCheck({ showGateWhileChecking: true });
+  }
+
+  /**
+   * Runs a user-initiated update check. Manual checks stay in the background
+   * while availability is being queried; if an update is found, the normal
+   * download/install gate takes over.
+   */
+  requestManualCheck(): Promise<DesktopUpdateState> {
+    if (this.availabilityCheckInFlight) return this.waitForAvailability();
+    if (
+      this.state.phase === 'downloading'
+      || this.state.phase === 'downloaded'
+      || (this.state.phase === 'checking' && this.downloadStarted)
+    ) {
+      return Promise.resolve(this.getState());
+    }
+    const pending = this.waitForAvailability();
+    this.beginAvailabilityCheck({ showGateWhileChecking: false });
+    return pending;
+  }
+
+  private beginAvailabilityCheck(opts: { showGateWhileChecking: boolean }): void {
     this.updater.autoDownload = false;
     this.updater.autoInstallOnAppQuit = false;
+
+    this.clearPendingTimeout();
+    this.availabilitySettled = false;
+    this.availabilityCheckInFlight = true;
+    this.downloadStarted = false;
+
+    if (opts.showGateWhileChecking) {
+      this.transition({
+        phase: 'checking',
+        targetVersion: null,
+        progress: null,
+        error: null,
+      });
+    }
 
     this.timeoutHandle = this.setTimeoutImpl(() => {
       this.timeoutHandle = null;
       if (this.availabilitySettled) return;
       this.availabilitySettled = true;
+      this.availabilityCheckInFlight = false;
       this.failOpen('timeout');
     }, this.timeoutMs);
 
@@ -163,15 +210,23 @@ export class DesktopUpdaterController {
       return;
     }
     this.availabilitySettled = true;
+    this.availabilityCheckInFlight = false;
     this.clearPendingTimeout();
     const targetVersion = typeof info?.version === 'string' ? info.version : null;
-    this.transition({ phase: 'checking', targetVersion });
+    this.transition({
+      phase: 'checking',
+      targetVersion,
+      progress: null,
+      error: null,
+    });
+    this.resolveAvailabilityWaiters();
     this.startDownload();
   }
 
   private onUpdateNotAvailable(): void {
     if (this.availabilitySettled) return;
     this.availabilitySettled = true;
+    this.availabilityCheckInFlight = false;
     this.clearPendingTimeout();
     this.failOpen('no-update');
   }
@@ -205,6 +260,7 @@ export class DesktopUpdaterController {
     const message = err instanceof Error ? err.message : String(err);
     if (!this.availabilitySettled) {
       this.availabilitySettled = true;
+      this.availabilityCheckInFlight = false;
       this.clearPendingTimeout();
       this.failOpen(message);
       return;
@@ -217,6 +273,7 @@ export class DesktopUpdaterController {
   private handleCheckFailure(err: unknown): void {
     if (this.availabilitySettled) return;
     this.availabilitySettled = true;
+    this.availabilityCheckInFlight = false;
     this.clearPendingTimeout();
     const message = err instanceof Error ? err.message : String(err);
     this.failOpen(message);
@@ -243,7 +300,13 @@ export class DesktopUpdaterController {
 
   private failOpen(reason: string): void {
     this.logger('fail-open', { reason });
-    this.transition({ phase: 'skipped', error: reason });
+    this.transition({
+      phase: 'skipped',
+      targetVersion: null,
+      progress: null,
+      error: reason,
+    });
+    this.resolveAvailabilityWaiters();
   }
 
   private clearPendingTimeout(): void {
@@ -264,6 +327,19 @@ export class DesktopUpdaterController {
         });
       }
     }
+  }
+
+  private waitForAvailability(): Promise<DesktopUpdateState> {
+    return new Promise((resolve) => {
+      this.availabilityResolvers.push(resolve);
+    });
+  }
+
+  private resolveAvailabilityWaiters(): void {
+    if (this.availabilityResolvers.length === 0) return;
+    const snapshot = this.getState();
+    const resolvers = this.availabilityResolvers.splice(0);
+    for (const resolve of resolvers) resolve(snapshot);
   }
 }
 
