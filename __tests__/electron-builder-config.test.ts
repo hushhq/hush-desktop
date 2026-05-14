@@ -7,6 +7,41 @@ const require = createRequire(import.meta.url);
 const config = require('../electron-builder.config.js');
 const afterPack = require('../scripts/after-pack.cjs');
 
+function loadConfigWithReleaseFlag(value: string | undefined) {
+  const configPath = require.resolve('../electron-builder.config.js');
+  const previous = process.env.HUSH_DESKTOP_RELEASE_BUILD;
+  delete require.cache[configPath];
+  if (value === undefined) {
+    delete process.env.HUSH_DESKTOP_RELEASE_BUILD;
+  } else {
+    process.env.HUSH_DESKTOP_RELEASE_BUILD = value;
+  }
+  try {
+    return require('../electron-builder.config.js');
+  } finally {
+    delete require.cache[configPath];
+    if (previous === undefined) {
+      delete process.env.HUSH_DESKTOP_RELEASE_BUILD;
+    } else {
+      process.env.HUSH_DESKTOP_RELEASE_BUILD = previous;
+    }
+  }
+}
+
+describe('electron-builder app identity', () => {
+  it('uses a separate bundle id for local package builds', () => {
+    const localConfig = loadConfigWithReleaseFlag(undefined);
+    expect(localConfig.appId).toBe('live.gethush.desktop.local');
+    expect(localConfig.productName).toBe('Hush Local');
+  });
+
+  it('uses the production bundle id only for release builds', () => {
+    const releaseConfig = loadConfigWithReleaseFlag('1');
+    expect(releaseConfig.appId).toBe('live.gethush.desktop');
+    expect(releaseConfig.productName).toBe('Hush');
+  });
+});
+
 describe('electron-builder macOS media entitlements', () => {
   it('signs the app and helper processes with the media entitlement file', () => {
     expect(config.mac?.entitlements).toBe('build/entitlements.mac.plist');

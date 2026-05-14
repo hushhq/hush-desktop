@@ -82,6 +82,7 @@ jobs:
           # CSC_* variables makes electron-builder try to load a non-existent
           # certificate file on GitHub-hosted runners.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          HUSH_DESKTOP_RELEASE_BUILD: '1'
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
