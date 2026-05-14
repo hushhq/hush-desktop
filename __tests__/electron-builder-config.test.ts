@@ -50,12 +50,24 @@ describe('electron-builder macOS signing fallback', () => {
 });
 
 describe('electron-builder tray icon bundling', () => {
-  it('ships build/icon.png into Resources for runtime tray resolution', () => {
+  it('ships build/icon.png into Resources for non-mac tray fallback', () => {
     const trayResource = config.extraResources?.find(
       (entry: { from?: string; to?: string }) =>
         entry?.from === 'build/icon.png' && entry?.to === 'build/icon.png',
     );
     expect(trayResource).toBeTruthy();
+  });
+
+  it('ships macOS tray template images into Resources for native menu-bar rendering', () => {
+    const resources = config.extraResources ?? [];
+    expect(resources).toContainEqual({
+      from: 'build/trayIconTemplate.png',
+      to: 'build/trayIconTemplate.png',
+    });
+    expect(resources).toContainEqual({
+      from: 'build/trayIconTemplate@2x.png',
+      to: 'build/trayIconTemplate@2x.png',
+    });
   });
 });
 

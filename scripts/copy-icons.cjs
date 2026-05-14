@@ -10,6 +10,8 @@
  * Outputs:
  *   - build/icon.png   (always — Linux + Windows derive from this)
  *   - build/icon.icns  (macOS only, generated from build/icon.png)
+ *   - build/trayIconTemplate.png     (macOS tray/menu-bar template, 16px)
+ *   - build/trayIconTemplate@2x.png  (macOS tray/menu-bar template, 32px)
  *
  * `iconutil` and `sips` only ship on macOS. On other hosts the script
  * falls back to PNG-only; electron-builder can derive platform icons
@@ -28,9 +30,13 @@ const buildDir = join(__dirname, '..', 'build');
 
 const localIconSrc = join(desktopRoot, 'assets', 'hush.icon');
 const localPngSrc = join(localIconSrc, 'Assets', 'icon.png');
+const trayTemplateSrc = join(localIconSrc, 'Assets', 'trayIconTemplate.png');
+const trayTemplate2xSrc = join(localIconSrc, 'Assets', 'trayIconTemplate@2x.png');
 const webPngSrc = join(repoRoot, 'hush-web', 'public', 'icon-512.png');
 const pngSrc = existsSync(webPngSrc) ? webPngSrc : localPngSrc;
 const pngDest = join(buildDir, 'icon.png');
+const trayTemplateDest = join(buildDir, 'trayIconTemplate.png');
+const trayTemplate2xDest = join(buildDir, 'trayIconTemplate@2x.png');
 
 const icnsDest = join(buildDir, 'icon.icns');
 
@@ -40,6 +46,14 @@ if (!existsSync(pngSrc)) {
   process.exit(1);
 }
 
+for (const templateSrc of [trayTemplateSrc, trayTemplate2xSrc]) {
+  if (!existsSync(templateSrc)) {
+    console.error(`tray template icon not found at: ${templateSrc}`);
+    console.error('expected committed 16px and 32px template PNGs in assets/hush.icon/Assets.');
+    process.exit(1);
+  }
+}
+
 if (!existsSync(buildDir)) {
   mkdirSync(buildDir, { recursive: true });
 }
@@ -47,6 +61,11 @@ if (!existsSync(buildDir)) {
 rmSync(icnsDest, { force: true });
 cpSync(pngSrc, pngDest);
 console.log(`brand PNG copied: ${pngSrc} -> ${pngDest}`);
+
+cpSync(trayTemplateSrc, trayTemplateDest);
+cpSync(trayTemplate2xSrc, trayTemplate2xDest);
+console.log(`tray template PNG copied: ${trayTemplateSrc} -> ${trayTemplateDest}`);
+console.log(`tray template @2x PNG copied: ${trayTemplate2xSrc} -> ${trayTemplate2xDest}`);
 
 if (process.platform !== 'darwin') {
   // .icns generation needs Apple's iconutil/sips. Skip on non-mac

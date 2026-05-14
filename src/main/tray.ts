@@ -7,8 +7,9 @@ import { recordEvent } from './diagnostics';
 const TRAY_TOOLTIP = 'Hush';
 
 /**
- * Tray icon target dimension. Most desktop trays render best at ~18px on
- * standard density; Electron will upscale for retina automatically.
+ * Non-macOS tray icon target dimension. macOS uses pre-rendered template
+ * assets (`trayIconTemplate.png` + `trayIconTemplate@2x.png`) so the OS can
+ * render sharp light/dark menu-bar masks without runtime resizing.
  */
 const TRAY_ICON_SIZE = 18;
 
@@ -56,16 +57,28 @@ export interface TrayIconCandidateContext {
   readonly isPackaged: boolean;
   readonly appPath: string;
   readonly resourcesPath: string;
+  readonly platform: NodeJS.Platform;
 }
 
 /**
- * Pure ordered list of paths to probe for the tray icon. Packaged builds
- * must resolve from `process.resourcesPath/build/icon.png` because
- * `app.getAppPath()` points at the asar-embedded code, which never contains
- * `build/`. Dev builds keep their existing fallback chain so `npm run dev`
- * works without a prior `dist:*` run.
+ * Pure ordered list of paths to probe for the tray icon. Packaged builds must
+ * resolve from `process.resourcesPath` because `app.getAppPath()` points at
+ * the asar-embedded code, which never contains `build/`. macOS uses dedicated
+ * template-mask assets; other platforms keep the full-color brand PNG. Dev
+ * builds keep their existing fallback chain so `npm run dev` works without a
+ * prior `dist:*` run.
  */
 export function buildTrayIconCandidates(ctx: TrayIconCandidateContext): string[] {
+  if (ctx.platform === 'darwin') {
+    if (ctx.isPackaged) {
+      return [join(ctx.resourcesPath, 'build', 'trayIconTemplate.png')];
+    }
+    return [
+      join(ctx.appPath, 'build', 'trayIconTemplate.png'),
+      join(ctx.appPath, 'assets', 'hush.icon', 'Assets', 'trayIconTemplate.png'),
+    ];
+  }
+
   if (ctx.isPackaged) {
     return [join(ctx.resourcesPath, 'build', 'icon.png')];
   }
@@ -101,6 +114,32 @@ export function resolveTrayIconPath(): string | null {
     isPackaged: app.isPackaged,
     appPath: app.getAppPath(),
     resourcesPath: process.resourcesPath,
+    platform: process.platform,
+  });
+}
+
+interface TrayImageLike<TSelf> {
+  resize(options: { width: number; height: number }): TSelf;
+  setTemplateImage(isTemplate: boolean): void;
+}
+
+/**
+ * Applies platform-specific tray image treatment. macOS template images must
+ * remain at their authored 16px/32px sizes so the menu bar can pick the @2x
+ * sibling and recolor the alpha mask. Other platforms keep the existing
+ * runtime resize path for the full-color brand icon.
+ */
+export function prepareTrayImageForPlatform<T extends TrayImageLike<T>>(
+  image: T,
+  platform: NodeJS.Platform,
+): T {
+  if (platform === 'darwin') {
+    image.setTemplateImage(true);
+    return image;
+  }
+  return image.resize({
+    width: TRAY_ICON_SIZE,
+    height: TRAY_ICON_SIZE,
   });
 }
 
@@ -128,12 +167,9 @@ export function createAppTray(hooks: TrayHooks): Tray | null {
     recordEvent('tray', 'skipped:empty-image', { isPackaged: app.isPackaged });
     return null;
   }
-  const sizedImage = baseImage.resize({
-    width: TRAY_ICON_SIZE,
-    height: TRAY_ICON_SIZE,
-  });
+  const trayImage = prepareTrayImageForPlatform(baseImage, process.platform);
 
-  const tray = new Tray(sizedImage);
+  const tray = new Tray(trayImage);
   tray.setToolTip(TRAY_TOOLTIP);
   const menu = Menu.buildFromTemplate(buildTrayMenuTemplate(hooks));
   tray.setContextMenu(menu);

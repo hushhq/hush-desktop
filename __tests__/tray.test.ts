@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { buildTrayMenuTemplate } from '../src/main/tray';
+import { buildTrayMenuTemplate, prepareTrayImageForPlatform } from '../src/main/tray';
 
 describe('buildTrayMenuTemplate', () => {
   it('lists Show Hush, a separator, and Quit Hush in that order', () => {
@@ -38,5 +38,37 @@ describe('buildTrayMenuTemplate', () => {
     );
     expect(onQuit).toHaveBeenCalledOnce();
     expect(onShow).not.toHaveBeenCalled();
+  });
+});
+
+describe('prepareTrayImageForPlatform', () => {
+  it('MacOS_UsesTemplateImageWithoutRuntimeResize', () => {
+    const image = {
+      resize: vi.fn(() => image),
+      setTemplateImage: vi.fn(),
+    };
+
+    const result = prepareTrayImageForPlatform(image, 'darwin');
+
+    expect(result).toBe(image);
+    expect(image.setTemplateImage).toHaveBeenCalledWith(true);
+    expect(image.resize).not.toHaveBeenCalled();
+  });
+
+  it('NonMac_ResizesFullColorTrayIcon', () => {
+    const resized = {
+      resize: vi.fn(() => resized),
+      setTemplateImage: vi.fn(),
+    };
+    const image = {
+      resize: vi.fn(() => resized),
+      setTemplateImage: vi.fn(),
+    };
+
+    const result = prepareTrayImageForPlatform(image, 'linux');
+
+    expect(result).toBe(resized);
+    expect(image.resize).toHaveBeenCalledWith({ width: 18, height: 18 });
+    expect(image.setTemplateImage).not.toHaveBeenCalled();
   });
 });

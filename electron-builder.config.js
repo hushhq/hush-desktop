@@ -2,8 +2,8 @@
  * electron-builder configuration.
  *
  * Icons: the brand icon is mirrored from hush-web/public/icon-512.png into
- * build/icon.png and build/icon.icns by `npm run copy-icons`, which the
- * dist:* scripts invoke automatically.
+ * build/icon.png, build/icon.icns, and macOS tray template PNGs by
+ * `npm run copy-icons`, which the dist:* scripts invoke automatically.
  *
  * Renderer assets: run `npm run copy-renderer` (copies ../hush-web/dist → renderer/)
  * before packaging. electron-builder copies renderer/ into app resources via
@@ -52,13 +52,20 @@ module.exports = {
       filter: ['**/*'],
     },
     {
-      // Tray icon resolved at runtime from `process.resourcesPath/build/icon.png`
-      // by `resolveTrayIconPath()`. Without this entry the packaged app cannot
-      // find the brand icon (`app.getAppPath()` points inside the asar, not at
-      // the build resources), so `createAppTray()` returns null and the macOS
-      // menu-bar extra / Windows tray / Linux tray never appears.
+      // Windows/Linux tray fallback resolved at runtime from
+      // `process.resourcesPath/build/icon.png`.
       from: 'build/icon.png',
       to: 'build/icon.png',
+    },
+    {
+      // macOS menu-bar template image. The "Template" suffix and @2x pair let
+      // macOS render the icon sharply and recolor it for light/dark menu bars.
+      from: 'build/trayIconTemplate.png',
+      to: 'build/trayIconTemplate.png',
+    },
+    {
+      from: 'build/trayIconTemplate@2x.png',
+      to: 'build/trayIconTemplate@2x.png',
     },
   ],
   mac: {

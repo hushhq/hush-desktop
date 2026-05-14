@@ -14,5 +14,7 @@ coverage/
 build/icon.png
 build/icon.icns
 build/icon.ico
+build/trayIconTemplate.png
+build/trayIconTemplate@2x.png
 build/.icon-stage/
 build/icon.iconset/
