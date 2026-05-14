@@ -21,6 +21,16 @@ export interface DesktopApi {
    * Called on lockVault, performLogout, and inactivity timeout.
    */
   clearVaultSessionKey(userId: string): Promise<void>;
+  /**
+   * Switches the BrowserWindow minimum-size floor.
+   *
+   * - `'auth'`: tall floor sized for the LinkDevice auth surface (pre-login).
+   * - `'app'` : compact floor for the operative app shell (post-login).
+   *
+   * Called by the renderer when the boot state crosses the auth boundary so
+   * the OS resize handle reflects the new minimum.
+   */
+  setMinWindowFloor(profile: 'auth' | 'app'): Promise<void>;
 }
 
 declare global {

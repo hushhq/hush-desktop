@@ -1,6 +1,65 @@
-import { ipcMain, app } from 'electron';
+import { ipcMain, app, BrowserWindow } from 'electron';
 import { IPC_CHANNEL } from '../../shared/ipc-channels';
 import { VaultSessionService, vaultSessionService } from '../vault/VaultSessionService';
+import {
+  APP_MIN_WINDOW_HEIGHT,
+  APP_MIN_WINDOW_WIDTH,
+  AUTH_MIN_WINDOW_HEIGHT,
+  AUTH_MIN_WINDOW_WIDTH,
+} from '../window-config';
+
+/**
+ * Two-level resize floor: tall for the pre-login LinkDevice surface,
+ * compact for the operative app shell. Switched by the renderer via
+ * `window.hushDesktop.setMinWindowFloor(profile)` as the boot state
+ * crosses the auth boundary.
+ */
+export const WINDOW_FLOOR = {
+  auth: { width: AUTH_MIN_WINDOW_WIDTH, height: AUTH_MIN_WINDOW_HEIGHT },
+  app: { width: APP_MIN_WINDOW_WIDTH, height: APP_MIN_WINDOW_HEIGHT },
+} as const;
+
+export type WindowFloorProfile = keyof typeof WINDOW_FLOOR;
+
+/**
+ * Minimal contract the floor handler needs from a window. Carved out so the
+ * handler can be unit-tested without instantiating Electron.
+ */
+export interface ResizableWindow {
+  setMinimumSize(width: number, height: number): void;
+  /**
+   * Electron's `BrowserWindow.getSize()` is typed as `number[]` rather than
+   * a tuple. Keep the interface compatible while we only ever read the first
+   * two entries below.
+   */
+  getSize(): number[];
+  setSize(width: number, height: number): void;
+}
+
+export function buildWindowFloorHandler() {
+  return {
+    setMinFloor(win: ResizableWindow | null, profile: unknown): void {
+      if (!win) return;
+      if (profile !== 'auth' && profile !== 'app') {
+        throw new Error(
+          `window:set-min-floor: invalid profile ${JSON.stringify(profile)}`,
+        );
+      }
+      const floor = WINDOW_FLOOR[profile];
+      win.setMinimumSize(floor.width, floor.height);
+      // If the window is currently smaller than the new floor, grow it so
+      // the OS does not leave the renderer painted below its own minimum.
+      const size = win.getSize();
+      const currentWidth = size[0] ?? floor.width;
+      const currentHeight = size[1] ?? floor.height;
+      const nextWidth = Math.max(currentWidth, floor.width);
+      const nextHeight = Math.max(currentHeight, floor.height);
+      if (nextWidth !== currentWidth || nextHeight !== currentHeight) {
+        win.setSize(nextWidth, nextHeight);
+      }
+    },
+  };
+}
 
 /**
  * Pure handler logic, extracted from Electron coupling for unit testing.
@@ -32,6 +91,7 @@ export function buildVaultHandlers(service: VaultSessionService) {
 
 export function registerIpcHandlers(): void {
   const vault = buildVaultHandlers(vaultSessionService);
+  const windowFloor = buildWindowFloorHandler();
 
   ipcMain.handle(IPC_CHANNEL.GET_APP_VERSION, () => app.getVersion());
 
@@ -44,4 +104,8 @@ export function registerIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNEL.VAULT_CLEAR_SESSION_KEY, (_e, userId) =>
     vault.clearSessionKey(userId),
   );
+  ipcMain.handle(IPC_CHANNEL.WINDOW_SET_MIN_FLOOR, (event, profile) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    windowFloor.setMinFloor(win, profile);
+  });
 }

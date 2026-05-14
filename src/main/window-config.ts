@@ -5,26 +5,30 @@ const HUSH_TEXT = '#EEEEF0';
 const WIN_TITLEBAR_HEIGHT = 40;
 
 /**
- * Minimum window dimensions required to keep the auth/login card surfaces
- * fully usable inside the window without triggering the flex-centered scroll
- * clip on `.home-page` (`display: flex; align-items: center; overflow-y: auto`).
+ * Pre-auth window floor.
  *
- * The dominant constraint is the `LinkDevice` "Link to existing device" card:
- * QR (264px) + section title + subtitle + instance selector + code label/row +
- * countdown + "Waiting for approval" + actions + back link, plus card padding
- * (32+32) and `.ld-container` padding (top clamp 48-96px / bottom 48px).
+ * Width 900: gives the auth card breathing room plus space for the chrome
+ * (traffic lights / titlebar overlay / drag region).
  *
- * Empirically (and mathematically) this content stack lands around 860px tall.
- * If the window is allowed to shrink below that, the flex-centered viewport
- * pushes the bottom of the card (regenerate / back link / status) below the
- * bottom edge with no scroll path — they become unreachable.
- *
- * Width: the auth card is capped at ~420px by `.home-container`; 900px gives
- * the card breathing room plus space for the chrome (titlebar overlay /
- * inset traffic lights / drag region).
+ * Height 860: matches the tallest auth surface — the `LinkDevice`
+ * "Waiting for approval" card stack (QR 264 + heading + instance picker
+ * + code row + countdown + status + actions + back link + card and
+ * `.ld-container` padding). Below this floor the flex-centered
+ * `.home-page` wrapper pushes the card's bottom controls off-screen
+ * with no scroll path.
  */
 export const AUTH_MIN_WINDOW_WIDTH = 900;
 export const AUTH_MIN_WINDOW_HEIGHT = 860;
+
+/**
+ * Post-auth (operative app) window floor.
+ *
+ * Once the user is authenticated the heavyweight auth/LinkDevice surfaces
+ * are no longer reachable, so the floor can drop to a compact size that
+ * still keeps the main shell usable (rail + sidebar + content column).
+ */
+export const APP_MIN_WINDOW_WIDTH = 940;
+export const APP_MIN_WINDOW_HEIGHT = 500;
 
 /**
  * Per-platform window chrome.

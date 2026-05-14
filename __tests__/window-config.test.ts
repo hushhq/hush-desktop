@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
+  APP_MIN_WINDOW_HEIGHT,
+  APP_MIN_WINDOW_WIDTH,
   AUTH_MIN_WINDOW_HEIGHT,
   AUTH_MIN_WINDOW_WIDTH,
   buildWindowOptions,
@@ -58,7 +60,7 @@ describe('buildWindowOptions', () => {
     expect(opts.webPreferences?.preload).toBe('/fake/preload.js');
   });
 
-  it('enforces a minimum window floor that fits the auth/login card stack', () => {
+  it('boots with the auth floor — heaviest pre-login surface must fit', () => {
     expect(opts.minWidth).toBe(AUTH_MIN_WINDOW_WIDTH);
     expect(opts.minHeight).toBe(AUTH_MIN_WINDOW_HEIGHT);
   });
@@ -69,6 +71,16 @@ describe('buildWindowOptions', () => {
     // does not clip the card's bottom controls below the viewport.
     expect(AUTH_MIN_WINDOW_HEIGHT).toBeGreaterThanOrEqual(860);
     expect(AUTH_MIN_WINDOW_WIDTH).toBeGreaterThanOrEqual(900);
+  });
+
+  it('exposes a smaller operative-app floor for the post-login shell', () => {
+    // Requirement 2026-05-14: once authenticated the window can shrink
+    // to a compact main-shell footprint. The auth-only LinkDevice surface
+    // is no longer reachable, so its tall floor no longer applies.
+    expect(APP_MIN_WINDOW_WIDTH).toBe(940);
+    expect(APP_MIN_WINDOW_HEIGHT).toBe(500);
+    expect(APP_MIN_WINDOW_WIDTH).toBeLessThanOrEqual(AUTH_MIN_WINDOW_WIDTH + 200);
+    expect(APP_MIN_WINDOW_HEIGHT).toBeLessThan(AUTH_MIN_WINDOW_HEIGHT);
   });
 
   it('does not start narrower or shorter than its own minimum floor', () => {

@@ -3,6 +3,7 @@ export const IPC_CHANNEL = {
   VAULT_SET_SESSION_KEY: 'vault:set-session-key',
   VAULT_GET_SESSION_KEY: 'vault:get-session-key',
   VAULT_CLEAR_SESSION_KEY: 'vault:clear-session-key',
+  WINDOW_SET_MIN_FLOOR: 'window:set-min-floor',
 } as const;
 
 export type IpcChannelKey = keyof typeof IPC_CHANNEL;

@@ -12,7 +12,18 @@ const SECURITY_HEADERS: Record<string, string> = {
 
 /**
  * Must be called before app.whenReady() so Electron treats 'app' as a
- * privileged, secure scheme (enabling fetch, service workers, and CORS).
+ * privileged, secure scheme (enabling fetch and CORS).
+ *
+ * Service Workers are intentionally disabled for `app://localhost`:
+ * the desktop shell updates its renderer through a full app reinstall,
+ * not through a browser-style SW skipWaiting flow. Allowing a SW to
+ * register inside the packaged origin would (a) risk pinning users to
+ * a stale precache after they install a new desktop build, and (b)
+ * surface needRefresh prompts that have no relationship to the
+ * installed .app version. The hush-web renderer mirrors this stance by
+ * short-circuiting `registerPWA` when the desktop bridge is present
+ * (see hush-web/src/lib/pwaUpdate.ts). Keeping the protocol-level flag
+ * `false` is the second line of defence.
  */
 export function registerAppScheme(): void {
   protocol.registerSchemesAsPrivileged([
@@ -22,7 +33,7 @@ export function registerAppScheme(): void {
         secure: true,
         standard: true,
         supportFetchAPI: true,
-        allowServiceWorkers: true,
+        allowServiceWorkers: false,
         corsEnabled: true,
       },
     },
