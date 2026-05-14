@@ -12,9 +12,10 @@
     "copy-renderer": "node scripts/copy-renderer.cjs",
     "copy-icons": "node scripts/copy-icons.cjs",
     "release:preflight:mac": "node scripts/release-preflight.cjs",
-    "dist:mac": "npm run release:preflight:mac && npm run build && npm run build-renderer && npm run copy-renderer && npm run copy-icons && electron-builder --mac --config electron-builder.config.js",
-    "dist:linux": "npm run build && npm run build-renderer && npm run copy-renderer && npm run copy-icons && electron-builder --linux --config electron-builder.config.js",
-    "dist:win": "npm run build && npm run build-renderer && npm run copy-renderer && npm run copy-icons && electron-builder --win --config electron-builder.config.js",
+    "dist:prepare": "node scripts/mark-dist-private.cjs",
+    "dist:mac": "npm run dist:prepare && npm run release:preflight:mac && npm run build && npm run build-renderer && npm run copy-renderer && npm run copy-icons && electron-builder --mac --config electron-builder.config.js",
+    "dist:linux": "npm run dist:prepare && npm run build && npm run build-renderer && npm run copy-renderer && npm run copy-icons && electron-builder --linux --config electron-builder.config.js",
+    "dist:win": "npm run dist:prepare && npm run build && npm run build-renderer && npm run copy-renderer && npm run copy-icons && electron-builder --win --config electron-builder.config.js",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
