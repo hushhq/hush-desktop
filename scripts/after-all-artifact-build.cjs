@@ -7,6 +7,7 @@
 const { markDistPrivate } = require('./mark-dist-private.cjs');
 
 exports.default = async function afterAllArtifactBuild(context) {
-  markDistPrivate(context.packager.projectDir);
+  const projectDir = context?.packager?.projectDir ?? process.cwd();
+  markDistPrivate(projectDir);
   return [];
 };

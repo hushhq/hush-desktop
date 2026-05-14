@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 const require = createRequire(import.meta.url);
 const config = require('../electron-builder.config.js');
 const { markDistPrivate } = require('../scripts/mark-dist-private.cjs');
+const afterAllArtifactBuild = require('../scripts/after-all-artifact-build.cjs');
 
 describe('local dist Spotlight guard', () => {
   it('marks the dist directory as private to Spotlight', () => {
@@ -22,5 +23,9 @@ describe('local dist Spotlight guard', () => {
 
   it('runs after electron-builder recreates release artifacts', () => {
     expect(config.afterAllArtifactBuild).toBe('scripts/after-all-artifact-build.cjs');
+  });
+
+  it('AfterAllArtifactBuild_ToleratesMissingPackagerContext', async () => {
+    await expect(afterAllArtifactBuild.default({})).resolves.toEqual([]);
   });
 });
