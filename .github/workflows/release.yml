@@ -74,10 +74,9 @@ jobs:
         working-directory: hush-desktop
 
       - name: Build desktop artifacts
-        run: npm run ${{ matrix.script }}
+        run: npm run ${{ matrix.script }} -- --publish never
         working-directory: hush-desktop
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # MVP release artifacts are intentionally unsigned unless signing
           # secrets are wired in a dedicated signing pass. Defining empty
           # CSC_* variables makes electron-builder try to load a non-existent
