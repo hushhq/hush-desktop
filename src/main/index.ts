@@ -1,4 +1,4 @@
-import { app, BrowserWindow, nativeImage, session } from 'electron';
+import { app, BrowserWindow, nativeImage, session, Tray } from 'electron';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { registerAppScheme, registerAppProtocol } from './protocol';
@@ -6,6 +6,8 @@ import { createMainWindow } from './window';
 import { registerIpcHandlers } from './ipc/handlers';
 import { registerMediaHandlers } from './media-handlers';
 import { logBootSnapshot } from './diagnostics';
+import { createLifecycleState } from './lifecycle';
+import { createAppTray } from './tray';
 
 // registerAppScheme must run before app.whenReady()
 registerAppScheme();
@@ -22,13 +24,6 @@ registerAppScheme();
  * the app is ready. Guarded on `!app.isPackaged` and `process.platform
  * === 'darwin'` so production builds and non-mac platforms keep their
  * existing path.
- *
- * Source preference (set by scripts/copy-icons.cjs at build time):
- *   1. build/icon.icns — the canonical macOS render of `hush.icon`
- *      (Apple Icon Composer document) with the Tahoe Liquid Glass /
- *      gradient effects baked into the standard renditions. Preferred.
- *   2. build/icon.png  — the cross-platform PWA fallback. Used when
- *      .icns is unavailable (e.g. cross-building from non-macOS hosts).
  */
 function applyDevDockIconIfNeeded(): void {
   if (app.isPackaged) return;
@@ -56,12 +51,44 @@ if (!gotSingleInstanceLock) {
   app.quit();
 }
 
+// ── Lifecycle state ────────────────────────────────────────────────────────
+//
+// The hide-on-close interceptor and the tray's "Quit Hush" item both need to
+// share a single `isQuitting` flag so the OS close button never tears down
+// the renderer while a *real* quit is still allowed to terminate the app.
+const lifecycle = createLifecycleState();
+
+let mainWindow: BrowserWindow | null = null;
+let appTray: Tray | null = null;
+
+function getMainWindow(): BrowserWindow | null {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+  return mainWindow;
+}
+
+function revealMainWindow(): void {
+  const win = getMainWindow();
+  if (win) {
+    lifecycle.revealWindow(win);
+    return;
+  }
+  mainWindow = createMainWindow(lifecycle);
+}
+
+function spawnMainWindow(): void {
+  mainWindow = createMainWindow(lifecycle);
+}
+
 app.on('second-instance', () => {
-  const windows = BrowserWindow.getAllWindows();
-  if (windows.length === 0) return;
-  const win = windows[0];
-  if (win.isMinimized()) win.restore();
-  win.focus();
+  // Single-instance handler — reuse the existing window if any (which may
+  // currently be hidden in the tray), otherwise spawn a fresh one.
+  revealMainWindow();
+});
+
+app.on('before-quit', () => {
+  // Any code path that reaches `app.quit()` (tray menu, Cmd-Q, OS shutdown)
+  // flips the lifecycle flag so the close handler stops intercepting.
+  lifecycle.markQuitting();
 });
 
 app.whenReady().then(() => {
@@ -80,17 +107,27 @@ app.whenReady().then(() => {
   // there is no record of permission decisions or boot state.
   logBootSnapshot({ devRendererUrl: process.env.HUSH_WEB_URL ?? null });
   applyDevDockIconIfNeeded();
-  createMainWindow();
+  spawnMainWindow();
+
+  appTray = createAppTray({
+    onShow: revealMainWindow,
+    onQuit: () => {
+      lifecycle.markQuitting();
+      app.quit();
+    },
+  });
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
-    }
+    // macOS dock click — surface the existing window when present so the
+    // renderer is not re-mounted (joined voice room must survive).
+    revealMainWindow();
   });
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  // Hide-to-tray means the renderer process intentionally outlives a
+  // window close. Do not call `app.quit()` here — the only quit paths
+  // are the tray menu and the platform Quit / Cmd-Q shortcut, both of
+  // which flip `lifecycle.markQuitting()` before close fires.
+  void appTray;
 });

@@ -18,6 +18,8 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IPC_CHANNEL.VAULT_CLEAR_SESSION_KEY, userId),
   setMinWindowFloor: (profile) =>
     ipcRenderer.invoke(IPC_CHANNEL.WINDOW_SET_MIN_FLOOR, profile),
+  measureInstanceHealth: (instanceUrl) =>
+    ipcRenderer.invoke(IPC_CHANNEL.NETWORK_MEASURE_INSTANCE_HEALTH, instanceUrl),
 };
 
 contextBridge.exposeInMainWorld('hushDesktop', api);

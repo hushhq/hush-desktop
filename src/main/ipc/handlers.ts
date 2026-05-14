@@ -1,4 +1,4 @@
-import { ipcMain, app, BrowserWindow } from 'electron';
+import { ipcMain, app, BrowserWindow, net } from 'electron';
 import { IPC_CHANNEL } from '../../shared/ipc-channels';
 import { VaultSessionService, vaultSessionService } from '../vault/VaultSessionService';
 import {
@@ -7,6 +7,10 @@ import {
   AUTH_MIN_WINDOW_HEIGHT,
   AUTH_MIN_WINDOW_WIDTH,
 } from '../window-config';
+import {
+  measureInstanceHealth,
+  type FetchLike,
+} from '../network/measureInstanceHealth';
 
 /**
  * Two-level resize floor: tall for the pre-login LinkDevice surface,
@@ -108,4 +112,25 @@ export function registerIpcHandlers(): void {
     const win = BrowserWindow.fromWebContents(event.sender);
     windowFloor.setMinFloor(win, profile);
   });
+  ipcMain.handle(
+    IPC_CHANNEL.NETWORK_MEASURE_INSTANCE_HEALTH,
+    (_event, instanceUrl) => measureInstanceHealth(instanceUrl, buildDefaultFetch()),
+  );
+}
+
+/**
+ * Adapter from Electron `net.fetch` to the `FetchLike` shape consumed by
+ * the pure handler. `net.fetch` was added in Electron 28; it runs on the
+ * main process network stack, so requests are not subject to renderer
+ * COEP / CORS policies. Reused across IPC calls but instantiated lazily
+ * so test environments without Electron's `net` symbol stay importable.
+ */
+function buildDefaultFetch(): FetchLike {
+  if (typeof net !== 'undefined' && typeof net.fetch === 'function') {
+    return ((url, init) => net.fetch(url, init)) as FetchLike;
+  }
+  // Fallback for environments where Electron's `net` is not available
+  // (unit tests, dev tooling). The handler is dependency-injected in
+  // tests, so this branch only fires when the runtime is misconfigured.
+  return ((url, init) => fetch(url, init as RequestInit)) as FetchLike;
 }
