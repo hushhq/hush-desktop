@@ -31,21 +31,27 @@ describe('electron-builder macOS signing fallback', () => {
     expect(config.afterPack).toBe('scripts/after-pack.cjs');
   });
 
-  it('only enables ad-hoc fallback for explicitly unsigned builds', () => {
+  it('enables ad-hoc fallback only when no signing identity is configured', () => {
     expect(
-      afterPack._private.isExplicitlyUnsignedBuild({
+      afterPack._private.canApplyAdHocFallback({
         CSC_IDENTITY_AUTO_DISCOVERY: 'false',
       }),
     ).toBe(true);
 
     expect(
-      afterPack._private.isExplicitlyUnsignedBuild({
+      afterPack._private.canApplyAdHocFallback({
         CSC_IDENTITY_AUTO_DISCOVERY: 'false',
         CSC_NAME: 'Developer ID Application: Example',
       }),
     ).toBe(false);
 
-    expect(afterPack._private.isExplicitlyUnsignedBuild({})).toBe(false);
+    expect(
+      afterPack._private.canApplyAdHocFallback({
+        CSC_LINK: 'base64-cert',
+      }),
+    ).toBe(false);
+
+    expect(afterPack._private.canApplyAdHocFallback({})).toBe(true);
   });
 });
 

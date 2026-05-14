@@ -17,13 +17,8 @@ const { execFileSync } = require('child_process');
 const { existsSync } = require('fs');
 const { join } = require('path');
 
-function isExplicitlyUnsignedBuild(env) {
-  return (
-    env.CSC_IDENTITY_AUTO_DISCOVERY === 'false' &&
-    !env.CSC_LINK &&
-    !env.CSC_NAME &&
-    env.HUSH_DESKTOP_SKIP_ADHOC_SIGN !== '1'
-  );
+function canApplyAdHocFallback(env) {
+  return !env.CSC_LINK && !env.CSC_NAME && env.HUSH_DESKTOP_SKIP_ADHOC_SIGN !== '1';
 }
 
 function verifyBundle(appPath) {
@@ -54,7 +49,7 @@ module.exports = async function afterPack(context) {
     verifyBundle(appPath);
     return;
   } catch (err) {
-    if (!isExplicitlyUnsignedBuild(process.env)) {
+    if (!canApplyAdHocFallback(process.env)) {
       throw new Error(`macOS app bundle code signature is invalid: ${err.message}`);
     }
   }
@@ -66,5 +61,5 @@ module.exports = async function afterPack(context) {
 };
 
 module.exports._private = {
-  isExplicitlyUnsignedBuild,
+  canApplyAdHocFallback,
 };
