@@ -52,6 +52,12 @@ npm run copy-renderer
 npm run dist:mac
 ```
 
+`dist/` is marked with `.metadata_never_index` during packaging so macOS
+Spotlight does not surface stale local `dist/mac*/Hush.app` bundles next to the
+real `/Applications/Hush.app` install. If Spotlight has already indexed older
+local builds, remove those old `dist/mac*` directories once; future package
+runs recreate the marker automatically.
+
 ### Tests
 
 ```sh
