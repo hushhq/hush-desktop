@@ -5,6 +5,8 @@ export const IPC_CHANNEL = {
   VAULT_CLEAR_SESSION_KEY: 'vault:clear-session-key',
   WINDOW_SET_MIN_FLOOR: 'window:set-min-floor',
   NETWORK_MEASURE_INSTANCE_HEALTH: 'network:measure-instance-health',
+  UPDATE_GET_STATE: 'update:get-state',
+  UPDATE_STATE_EVENT: 'update:state',
 } as const;
 
 export type IpcChannelKey = keyof typeof IPC_CHANNEL;
