@@ -51,6 +51,15 @@ module.exports = {
       to: 'renderer',
       filter: ['**/*'],
     },
+    {
+      // Tray icon resolved at runtime from `process.resourcesPath/build/icon.png`
+      // by `resolveTrayIconPath()`. Without this entry the packaged app cannot
+      // find the brand icon (`app.getAppPath()` points inside the asar, not at
+      // the build resources), so `createAppTray()` returns null and the macOS
+      // menu-bar extra / Windows tray / Linux tray never appears.
+      from: 'build/icon.png',
+      to: 'build/icon.png',
+    },
   ],
   mac: {
     category: 'public.app-category.social-networking',

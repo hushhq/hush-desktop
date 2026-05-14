@@ -38,11 +38,12 @@ import { recordEvent } from './diagnostics';
  *      MVP picks a default source automatically; see
  *      `chooseDisplayMediaSource` for the tradeoff comment.
  *
- * On macOS the handlers also run a one-shot pre-prompt for mic/camera
- * via `systemPreferences.askForMediaAccess`, so the OS TCC dialog
- * surfaces before LiveKit's `getUserMedia` rather than during the
- * first publish. Failures are logged and not fatal: the renderer
- * fallback still works.
+ * macOS TCC dialogs are NOT primed at startup. The real `getUserMedia` /
+ * `getDisplayMedia` / mic-test / camera-enable user action is what
+ * triggers the OS prompt — Hush never asks for microphone or camera
+ * access before the user does something that requires it. Current TCC
+ * status is logged for diagnostics without invoking
+ * `systemPreferences.askForMediaAccess`.
  */
 export function registerMediaHandlers(
   session: Session,
@@ -148,8 +149,8 @@ export function registerMediaHandlers(
   }, { useSystemPicker });
 
   if (process.platform === 'darwin') {
-    primeMacMediaAccess('microphone');
-    primeMacMediaAccess('camera');
+    logMacMediaAccessStatus('microphone');
+    logMacMediaAccessStatus('camera');
   }
 }
 
@@ -162,33 +163,20 @@ function shouldUseSystemDisplayMediaPicker(): boolean {
 }
 
 /**
- * Triggers the macOS TCC prompt for the named media type up-front so
- * the OS dialog surfaces predictably during app launch instead of
- * mid-call. Logs the resolved authorisation status. Never throws:
- * `askForMediaAccess` returns `false` when permission is denied
- * (already-denied surface needs the user to flip System Settings).
+ * Logs the current macOS TCC authorisation status for diagnostics without
+ * surfacing any OS dialog. Hush deliberately defers the native prompt to
+ * the user's first real action (`getUserMedia` for mic-test / voice join,
+ * `getDisplayMedia` for screen share) — see the module docblock.
+ *
+ * Never calls `systemPreferences.askForMediaAccess`. Never throws: old
+ * Electron / non-macOS calls fall through to a single diagnostic line.
  */
-function primeMacMediaAccess(kind: 'microphone' | 'camera'): void {
+function logMacMediaAccessStatus(kind: 'microphone' | 'camera'): void {
   try {
     const status = systemPreferences.getMediaAccessStatus(kind);
     recordEvent('tcc', 'access-status', { kind, status });
-    if (status === 'not-determined') {
-      systemPreferences
-        .askForMediaAccess(kind)
-        .then((granted) => {
-          recordEvent('tcc', 'ask-result', { kind, granted });
-        })
-        .catch((err) => {
-          recordEvent('tcc', 'ask-threw', {
-            kind,
-            message: err instanceof Error ? err.message : String(err),
-          });
-        });
-    }
   } catch (err) {
-    // Old Electron / non-macOS builds may not expose the call at all.
-    // The handlers above still work; we just lose the proactive prompt.
-    recordEvent('tcc', 'priming-failed', {
+    recordEvent('tcc', 'access-status-failed', {
       kind,
       message: err instanceof Error ? err.message : String(err),
     });

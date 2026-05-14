@@ -49,6 +49,16 @@ describe('electron-builder macOS signing fallback', () => {
   });
 });
 
+describe('electron-builder tray icon bundling', () => {
+  it('ships build/icon.png into Resources for runtime tray resolution', () => {
+    const trayResource = config.extraResources?.find(
+      (entry: { from?: string; to?: string }) =>
+        entry?.from === 'build/icon.png' && entry?.to === 'build/icon.png',
+    );
+    expect(trayResource).toBeTruthy();
+  });
+});
+
 describe('electron-builder update feed', () => {
   it('publishes release metadata to the public GitHub Releases feed', () => {
     expect(config.publish).toEqual([
