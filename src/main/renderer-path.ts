@@ -12,16 +12,18 @@ import { resolve, join, sep, extname } from 'path';
 export function resolveRendererPath(rendererRoot: string, urlPath: string): string | null {
   const withoutQuery = urlPath.split('?')[0];
   const decoded = decodeURIComponent(withoutQuery);
+  const rootResolved = resolve(rendererRoot);
+  const relativePath = decoded.replace(/^[/\\]+/, '');
 
-  const rootWithSep = rendererRoot.endsWith(sep) ? rendererRoot : rendererRoot + sep;
+  const rootWithSep = rootResolved.endsWith(sep) ? rootResolved : rootResolved + sep;
 
   // Step 1: Reject any path that resolves outside the renderer root.
-  const rawResolved = resolve(join(rendererRoot, decoded));
-  if (!rawResolved.startsWith(rootWithSep) && rawResolved !== rendererRoot) {
+  const rawResolved = resolve(rootResolved, relativePath);
+  if (!rawResolved.startsWith(rootWithSep) && rawResolved !== rootResolved) {
     return null;
   }
 
   // Step 2: SPA fallback — any path without a file extension serves index.html.
-  const fsPath = extname(decoded) ? decoded : '/index.html';
-  return resolve(join(rendererRoot, fsPath));
+  const fsPath = extname(relativePath) ? relativePath : 'index.html';
+  return resolve(join(rootResolved, fsPath));
 }
