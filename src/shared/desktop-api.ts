@@ -1,3 +1,5 @@
+import type { DesktopUpdateState } from './desktop-update';
+
 /**
  * Shape of window.hushDesktop exposed by the preload bridge.
  * Kept narrow by design — add methods here only when main-process access is provably needed.
@@ -47,6 +49,18 @@ export interface DesktopApi {
    * without try/catch boilerplate.
    */
   measureInstanceHealth(instanceUrl: string): Promise<DesktopHealthResult>;
+  /**
+   * Fetches the current desktop auto-update state snapshot. Safe to call from
+   * any renderer mount — main process never throws, even if no update check has
+   * been started (returns an `idle` snapshot in that case).
+   */
+  getDesktopUpdateState(): Promise<DesktopUpdateState>;
+  /**
+   * Subscribes to push updates of the desktop auto-update state. The listener
+   * fires for every state transition in main. Returns an unsubscribe function
+   * — call it on component unmount to remove the underlying IPC listener.
+   */
+  onDesktopUpdateState(listener: (state: DesktopUpdateState) => void): () => void;
 }
 
 /**

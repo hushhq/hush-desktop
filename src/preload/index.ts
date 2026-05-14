@@ -1,5 +1,6 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { DesktopApi } from '../shared/desktop-api';
+import type { DesktopUpdateState } from '../shared/desktop-update';
 import { IPC_CHANNEL } from '../shared/ipc-channels';
 
 /**
@@ -20,6 +21,15 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IPC_CHANNEL.WINDOW_SET_MIN_FLOOR, profile),
   measureInstanceHealth: (instanceUrl) =>
     ipcRenderer.invoke(IPC_CHANNEL.NETWORK_MEASURE_INSTANCE_HEALTH, instanceUrl),
+  getDesktopUpdateState: () =>
+    ipcRenderer.invoke(IPC_CHANNEL.UPDATE_GET_STATE) as Promise<DesktopUpdateState>,
+  onDesktopUpdateState: (listener) => {
+    const wrapped = (_event: IpcRendererEvent, state: DesktopUpdateState) => listener(state);
+    ipcRenderer.on(IPC_CHANNEL.UPDATE_STATE_EVENT, wrapped);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNEL.UPDATE_STATE_EVENT, wrapped);
+    };
+  },
 };
 
 contextBridge.exposeInMainWorld('hushDesktop', api);

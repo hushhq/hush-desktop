@@ -8,6 +8,7 @@ import { registerMediaHandlers } from './media-handlers';
 import { logBootSnapshot } from './diagnostics';
 import { createLifecycleState } from './lifecycle';
 import { createAppTray } from './tray';
+import { startDesktopUpdater } from './update/desktopUpdaterFactory';
 
 // registerAppScheme must run before app.whenReady()
 registerAppScheme();
@@ -77,6 +78,12 @@ function revealMainWindow(): void {
 
 function spawnMainWindow(): void {
   mainWindow = createMainWindow(lifecycle);
+  // Kick off the packaged-build auto-update gate once the renderer is hosted.
+  // No-ops in dev because `startDesktopUpdater` checks `app.isPackaged`.
+  // Wait for ready-to-show so webContents.send pushes after the renderer mounts.
+  mainWindow.webContents.once('did-finish-load', () => {
+    if (mainWindow) startDesktopUpdater(mainWindow);
+  });
 }
 
 app.on('second-instance', () => {
