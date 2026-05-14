@@ -11,6 +11,7 @@ import { installAppMenu } from './appMenu';
 import { createAppTray } from './tray';
 import { startDesktopUpdater } from './update/desktopUpdaterFactory';
 import { requestDesktopUpdateCheck } from './update/desktopUpdaterRegistry';
+import { showManualUpdateFeedback } from './update/manualUpdateFeedback';
 
 // registerAppScheme must run before app.whenReady()
 registerAppScheme();
@@ -83,7 +84,12 @@ function spawnMainWindow(): void {
 }
 
 function checkForUpdatesFromShell(): void {
-  void requestDesktopUpdateCheck(app.getVersion());
+  void requestDesktopUpdateCheck(app.getVersion()).then((state) =>
+    showManualUpdateFeedback(state, {
+      appName: app.name || 'Hush',
+      window: getMainWindow(),
+    }),
+  );
 }
 
 app.on('second-instance', () => {
