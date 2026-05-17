@@ -81,6 +81,12 @@ module.exports = {
       { target: 'zip', arch: ['arm64', 'x64'] },
     ],
   },
+  protocols: [
+    {
+      name: 'Hush invite links',
+      schemes: ['hush'],
+    },
+  ],
   afterPack: 'scripts/after-pack.cjs',
   afterAllArtifactBuild: 'scripts/after-all-artifact-build.cjs',
   linux: {

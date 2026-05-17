@@ -2,7 +2,7 @@ import { app, autoUpdater as electronAutoUpdater, BrowserWindow, nativeImage, se
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { registerAppScheme, registerAppProtocol } from './protocol';
-import { createMainWindow } from './window';
+import { createMainWindow, loadRendererPath } from './window';
 import { registerIpcHandlers } from './ipc/handlers';
 import { registerMediaHandlers } from './media-handlers';
 import { logBootSnapshot, recordEvent } from './diagnostics';
@@ -64,23 +64,28 @@ const lifecycle = createLifecycleState();
 
 let mainWindow: BrowserWindow | null = null;
 let appTray: Tray | null = null;
+let pendingDeepLinkPath: string | null = null;
 
 function getMainWindow(): BrowserWindow | null {
   if (!mainWindow || mainWindow.isDestroyed()) return null;
   return mainWindow;
 }
 
-function revealMainWindow(): void {
+function revealMainWindow(path = '/'): void {
   const win = getMainWindow();
   if (win) {
+    if (path !== '/') {
+      loadRendererPath(win, path);
+    }
     lifecycle.revealWindow(win);
     return;
   }
-  mainWindow = createMainWindow(lifecycle);
+  mainWindow = createMainWindow(lifecycle, path);
 }
 
 function spawnMainWindow(): void {
-  mainWindow = createMainWindow(lifecycle);
+  mainWindow = createMainWindow(lifecycle, pendingDeepLinkPath ?? '/');
+  pendingDeepLinkPath = null;
 }
 
 function checkForUpdatesFromShell(): void {
@@ -92,9 +97,59 @@ function checkForUpdatesFromShell(): void {
   );
 }
 
-app.on('second-instance', () => {
+function deepLinkToRendererPath(rawUrl: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol === 'hush:') {
+    const segments = [parsed.hostname, ...parsed.pathname.split('/')]
+      .map((part) => part.trim())
+      .filter(Boolean);
+    const kind = segments[0];
+    if (kind === 'invite' && segments[1]) {
+      return `/invite/${encodeURIComponent(segments[1])}${parsed.hash}`;
+    }
+    if (kind === 'join' && segments[1] && segments[2]) {
+      return `/join/${encodeURIComponent(segments[1])}/${encodeURIComponent(segments[2])}${parsed.hash}`;
+    }
+    return null;
+  }
+  if (parsed.protocol === 'https:' && parsed.hostname === 'app.gethush.live') {
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  }
+  return null;
+}
+
+function extractDeepLinkArg(argv: readonly string[]): string | null {
+  return argv.find((arg) => arg.startsWith('hush://')) ?? null;
+}
+
+function handleDeepLink(rawUrl: string): void {
+  const path = deepLinkToRendererPath(rawUrl);
+  if (!path) return;
+  pendingDeepLinkPath = path;
+  if (!app.isReady()) return;
+  revealMainWindow(path);
+}
+
+app.setAsDefaultProtocolClient('hush');
+
+app.on('open-url', (event, rawUrl) => {
+  event.preventDefault();
+  handleDeepLink(rawUrl);
+});
+
+app.on('second-instance', (_event, argv) => {
   // Single-instance handler — reuse the existing window if any (which may
   // currently be hidden in the tray), otherwise spawn a fresh one.
+  const rawUrl = extractDeepLinkArg(argv);
+  if (rawUrl) {
+    handleDeepLink(rawUrl);
+    return;
+  }
   revealMainWindow();
 });
 
