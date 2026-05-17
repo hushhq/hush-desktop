@@ -5,7 +5,7 @@ import { registerAppScheme, registerAppProtocol } from './protocol';
 import { createMainWindow } from './window';
 import { registerIpcHandlers } from './ipc/handlers';
 import { registerMediaHandlers } from './media-handlers';
-import { logBootSnapshot } from './diagnostics';
+import { logBootSnapshot, recordEvent } from './diagnostics';
 import { createLifecycleState } from './lifecycle';
 import { installAppMenu } from './appMenu';
 import { createAppTray } from './tray';
@@ -109,6 +109,46 @@ electronAutoUpdater.on('before-quit-for-update', () => {
   // closing windows. Treat it like a real quit so hide-to-tray does not
   // intercept the close event and leave the downloaded update pending.
   lifecycle.markQuitting();
+  recordEvent('native-autoupdater', 'before-quit-for-update');
+});
+
+// ── Native Squirrel.Mac autoUpdater diagnostics ────────────────────────────
+//
+// On macOS, electron-updater's `quitAndInstall()` hands the downloaded zip
+// off to Electron's built-in `autoUpdater` (which binds Squirrel.Mac) via
+// a local HTTP proxy. Squirrel.Mac then re-fetches the archive, validates
+// the signature, and on success emits its own `update-downloaded` and
+// quits the app to swap bundles.
+//
+// If the code signature of the downloaded archive does not match the
+// running app's signing identity / team id, or Hardened Runtime / entitlements
+// mismatch, or the zip is unsigned, Squirrel.Mac aborts SILENTLY: no native
+// `update-downloaded`, no quit, no error surfaced through electron-updater
+// (which has already considered the download "complete" at this point).
+// The renderer sits on the "Relaunching" gate forever.
+//
+// These listeners append every native autoUpdater transition to the diagnostics
+// log so the next failure self-reports the exact step Squirrel aborted on.
+// They have no behavioural side-effect; the controller still owns the state
+// machine.
+electronAutoUpdater.on('error', (err: Error) => {
+  const message = err instanceof Error ? err.message : String(err);
+  recordEvent('native-autoupdater', 'error', { message });
+});
+electronAutoUpdater.on('checking-for-update', () => {
+  recordEvent('native-autoupdater', 'checking-for-update');
+});
+electronAutoUpdater.on('update-available', () => {
+  recordEvent('native-autoupdater', 'update-available');
+});
+electronAutoUpdater.on('update-not-available', () => {
+  recordEvent('native-autoupdater', 'update-not-available');
+});
+electronAutoUpdater.on('update-downloaded', (_event, releaseNotes, releaseName) => {
+  recordEvent('native-autoupdater', 'update-downloaded', {
+    releaseName: typeof releaseName === 'string' ? releaseName : null,
+    hasReleaseNotes: typeof releaseNotes === 'string' && releaseNotes.length > 0,
+  });
 });
 
 app.whenReady().then(() => {
