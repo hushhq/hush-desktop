@@ -56,8 +56,11 @@ workflow requires these repository secrets for the macOS matrix job:
 
 `MAC_CSC_LINK` is passed to electron-builder as `CSC_LINK`, and
 `MAC_CSC_KEY_PASSWORD` is passed as `CSC_KEY_PASSWORD`. The macOS job also sets
-`HUSH_DESKTOP_NOTARIZE=1`; local package builds keep notarization disabled
-unless that environment variable is explicitly set.
+`HUSH_DESKTOP_NOTARIZE=1`. `APPLE_API_KEY` stores the `.p8` file contents in
+GitHub secrets; the workflow writes it to a private temporary file and passes
+that file path to electron-builder because `notarytool` requires a filesystem
+path. Local package builds keep notarization disabled unless
+`HUSH_DESKTOP_NOTARIZE` is explicitly set.
 
 Unsigned artifacts are acceptable for internal development, but they are not
 acceptable as a polished public distribution path:
