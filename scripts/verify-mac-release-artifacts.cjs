@@ -48,12 +48,12 @@ function findAppBundle(directory) {
 
 function verifyApp(appPath) {
   execFile('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=4', appPath]);
+  execFile('/usr/bin/xcrun', ['stapler', 'validate', appPath]);
   execFile('/usr/sbin/spctl', ['-a', '-vvv', '-t', 'open', appPath]);
   console.log(`[verify-mac-release] trusted app: ${appPath}`);
 }
 
 function verifyDmg(dmgPath) {
-  execFile('/usr/bin/xcrun', ['stapler', 'validate', dmgPath]);
   const output = execFile('/usr/bin/hdiutil', ['attach', '-nobrowse', '-readonly', dmgPath]);
   const mountPath = findMountedVolume(output);
   try {

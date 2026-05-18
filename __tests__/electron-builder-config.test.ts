@@ -73,15 +73,16 @@ describe('electron-builder macOS media entitlements', () => {
 });
 
 describe('electron-builder macOS notarization', () => {
-  it('keeps notarization disabled unless release CI opts in', () => {
-    const localConfig = loadConfigWithEnv({ HUSH_DESKTOP_NOTARIZE: undefined });
+  it('keeps electron-builder inline notarization disabled', () => {
+    const localConfig = loadConfigWithEnv({ HUSH_DESKTOP_NOTARIZE_APP: undefined });
     expect(localConfig.mac?.notarize).toBe(false);
   });
 
-  it('supports explicit electron-builder notarization opt-in', () => {
-    const releaseConfig = loadConfigWithEnv({ HUSH_DESKTOP_NOTARIZE: '1' });
+  it('runs the app notarization after signing and before artifact creation', () => {
+    const releaseConfig = loadConfigWithEnv({ HUSH_DESKTOP_NOTARIZE_APP: '1' });
     expect(releaseConfig.mac?.hardenedRuntime).toBe(true);
-    expect(releaseConfig.mac?.notarize).toBe(true);
+    expect(releaseConfig.mac?.notarize).toBe(false);
+    expect(releaseConfig.afterSign).toBe('scripts/notarize-mac-app.cjs');
   });
 });
 

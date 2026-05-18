@@ -121,15 +121,15 @@ The current `dist:mac` output is intended for local + internal MVP use, not for 
 |-|-|-|
 | **Locally signed** | The bundle has a code signature. electron-builder auto-picks the first available macOS signing identity in the local keychain. | **Yes**, with an **Apple Development** cert (`Authority: Apple Development: …`). Hardened runtime is enabled (`flags=0x10000(runtime)`). |
 | **Gatekeeper-assessed on this workstation** | `spctl --assess` returns "accepted" on the developer's own machine. | **Yes**, but this is workstation-local. The result can also include `override=security disabled` if the developer has globally relaxed Gatekeeper. It tells you nothing about other machines. |
-| **Notarized by Apple** | Submitted to Apple's notary service and stapled (`xcrun stapler staple`). Required for distribution outside the development team. | **No**. `dist:mac` skips notarization (`reason="notarize" options were unable to be generated`). |
-| **Safe first-run on a fresh Mac** | A user downloading the build from the internet can double-click and launch without Gatekeeper warnings. | **No**. Apple Development certs are not trusted for public distribution, and there is no notarization. A fresh user account will see "Apple cannot check it for malicious software" and need to right-click → Open (or `xattr -d com.apple.quarantine`) to override Gatekeeper. |
+| **Notarized by Apple** | Submitted to Apple's notary service and stapled (`xcrun stapler staple`). Required for distribution outside the development team. | **Local builds: no. Release CI: yes**, when Developer ID and App Store Connect API key secrets are present. CI notarizes and staples the signed `.app` before DMG/ZIP creation. |
+| **Safe first-run on a fresh Mac** | A user downloading the build from the internet can double-click and launch without Gatekeeper warnings. | **Local builds: no. Release CI: expected yes after verification passes.** Apple Development certs are not trusted for public distribution; Developer ID plus notarization is required. |
 
 To make the build distribution-ready outside the dev team, the following are required and **cannot be done from inside this repo**:
 
 1. A **Developer ID Application** certificate (paid Apple Developer Program; *different* from the Apple Development cert produced by Xcode / Apple Configurator).
 2. `notarytool` credentials: an Apple ID + app-specific password, or an App Store Connect API key.
-3. A run of `electron-builder` with `mac.identity` set to the Developer ID identity *and* `mac.notarize` configured (or the equivalent `notarize` post-build step).
-4. `xcrun stapler staple` on the resulting `.dmg` / `.zip`.
+3. A run of `electron-builder` with `mac.identity` set to the Developer ID identity and the `afterSign` app notarization hook enabled.
+4. `xcrun stapler staple` on the signed `.app` before creating `.dmg` / updater `.zip` artifacts.
 
 The local build chain (`npm run dist:mac`) is fine for MVP-internal use and developer machines that have already trusted the Apple Development cert. Do not hand it to external users without going through the steps above.
 

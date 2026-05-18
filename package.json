@@ -1,6 +1,6 @@
 {
   "name": "hush-desktop",
-  "version": "0.1.16-mvp",
+  "version": "0.1.17-mvp",
   "description": "Electron desktop shell for Hush",
   "author": "Hush",
   "private": true,

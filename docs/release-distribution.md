@@ -64,13 +64,16 @@ Developer ID Installer certificate fails before notarization.
 
 `APPLE_API_KEY` stores the `.p8` file contents in GitHub secrets. The workflow
 writes it to a private temporary file because `notarytool` requires a filesystem
-path. Release CI disables electron-builder's inline notarization
-(`HUSH_DESKTOP_NOTARIZE=0`) and runs `scripts/notarize-mac-release-artifacts.cjs`
-after packaging instead. That script submits every final macOS DMG and updater
-ZIP, logs the Apple submission id, polls status once per minute, staples DMGs,
-and fails the job with the Apple notary log on rejection or timeout. Local
-package builds keep notarization disabled unless `HUSH_DESKTOP_NOTARIZE` is
-explicitly set.
+path. Release CI keeps electron-builder's inline notarization disabled and runs
+`scripts/notarize-mac-app.cjs` from the `afterSign` hook instead. That hook
+zips the signed `.app`, submits that app bundle to Apple, logs the submission
+id, polls status once per minute, staples the accepted ticket to the `.app`,
+and only then lets electron-builder create the DMG and updater ZIP from the
+notarized app. CI caps each app notarization wait with
+`HUSH_NOTARY_TIMEOUT_MINUTES`; if Apple leaves a submission in progress past
+that threshold, the release fails fast with the submission id instead of
+blocking for hours. Local package builds keep notarization disabled unless
+`HUSH_DESKTOP_NOTARIZE_APP=1` is explicitly set.
 
 The macOS job must verify the final downloadable DMG and ZIP artifacts with
 `codesign`, `spctl`, and `stapler` before upload. A release is not valid just

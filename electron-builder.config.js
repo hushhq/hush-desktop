@@ -10,18 +10,17 @@
  * extraResources so it lives outside the asar (required for net.fetch file:// serving).
  *
  * Code signing posture: release CI provides Developer ID credentials through
- * CSC_* environment variables, then notarizes the final DMG/ZIP artifacts in a
- * separate workflow step with visible notarytool polling. Local package builds
- * keep electron-builder notarization disabled unless HUSH_DESKTOP_NOTARIZE=1
- * is explicitly set, and use the afterPack ad-hoc fallback only when no signing
- * identity is configured.
+ * CSC_* environment variables, then notarizes the signed .app bundle in
+ * afterSign before DMG/ZIP artifacts are created. Local package builds keep
+ * notarization disabled unless HUSH_DESKTOP_NOTARIZE_APP=1 is explicitly set,
+ * and use the afterPack ad-hoc fallback only when no signing identity is
+ * configured.
  *
  * Note: this file must remain CommonJS (module.exports). The package.json has no
  * "type":"module", so electron-builder loads .js configs as CJS.
  */
 
 const isReleaseBuild = process.env.HUSH_DESKTOP_RELEASE_BUILD === '1';
-const shouldNotarizeMac = process.env.HUSH_DESKTOP_NOTARIZE === '1';
 const appId = isReleaseBuild ? 'live.gethush.desktop' : 'live.gethush.desktop.local';
 const productName = isReleaseBuild ? 'Hush' : 'Hush Local';
 
@@ -76,7 +75,7 @@ module.exports = {
     hardenedRuntime: true,
     entitlements: 'build/entitlements.mac.plist',
     entitlementsInherit: 'build/entitlements.mac.plist',
-    notarize: shouldNotarizeMac,
+    notarize: false,
     target: [
       { target: 'dmg', arch: ['arm64', 'x64'] },
       { target: 'zip', arch: ['arm64', 'x64'] },
@@ -89,6 +88,7 @@ module.exports = {
     },
   ],
   afterPack: 'scripts/after-pack.cjs',
+  afterSign: 'scripts/notarize-mac-app.cjs',
   afterAllArtifactBuild: 'scripts/after-all-artifact-build.cjs',
   linux: {
     // Debian's `dpkg-deb` requires a maintainer "Real Name <email>" string.
