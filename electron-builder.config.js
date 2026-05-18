@@ -9,20 +9,18 @@
  * before packaging. electron-builder copies renderer/ into app resources via
  * extraResources so it lives outside the asar (required for net.fetch file:// serving).
  *
- * Code signing posture: this config does NOT pin a specific identity or
- * configure notarize. electron-builder picks the first available macOS
- * signing identity in the local keychain when auto-discovery is enabled.
- * In unsigned CI builds, afterPack applies an ad-hoc signature so the app
- * bundle is at least structurally valid. That is NOT a Developer ID
- * Application signature, and notarization is skipped, so the resulting
- * .app is not safe to hand to external users without first wiring up
- * Developer ID + notarytool. See README.md "macOS distribution status".
+ * Code signing posture: release CI provides Developer ID credentials through
+ * CSC_* environment variables and opts into notarization with
+ * HUSH_DESKTOP_NOTARIZE=1. Local unsigned package builds keep notarization off
+ * and use the afterPack ad-hoc fallback only when no signing identity is
+ * configured.
  *
  * Note: this file must remain CommonJS (module.exports). The package.json has no
  * "type":"module", so electron-builder loads .js configs as CJS.
  */
 
 const isReleaseBuild = process.env.HUSH_DESKTOP_RELEASE_BUILD === '1';
+const shouldNotarizeMac = process.env.HUSH_DESKTOP_NOTARIZE === '1';
 const appId = isReleaseBuild ? 'live.gethush.desktop' : 'live.gethush.desktop.local';
 const productName = isReleaseBuild ? 'Hush' : 'Hush Local';
 
@@ -74,8 +72,10 @@ module.exports = {
   ],
   mac: {
     category: 'public.app-category.social-networking',
+    hardenedRuntime: true,
     entitlements: 'build/entitlements.mac.plist',
     entitlementsInherit: 'build/entitlements.mac.plist',
+    notarize: shouldNotarizeMac,
     target: [
       { target: 'dmg', arch: ['arm64', 'x64'] },
       { target: 'zip', arch: ['arm64', 'x64'] },

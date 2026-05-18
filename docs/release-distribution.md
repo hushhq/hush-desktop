@@ -41,7 +41,8 @@ Do not promise that every platform will always download only a delta. The UI mus
 
 ## Signing state
 
-The workflow accepts signing secrets but can run without them:
+macOS release builds are signed and notarized in CI. The `Release Desktop`
+workflow requires these repository secrets for the macOS matrix job:
 
 | Secret | Purpose |
 |-|-|
@@ -53,7 +54,13 @@ The workflow accepts signing secrets but can run without them:
 | `WIN_CSC_LINK` | Base64-encoded Windows Authenticode certificate |
 | `WIN_CSC_KEY_PASSWORD` | Certificate password |
 
-Unsigned artifacts are acceptable for internal development, but they are not acceptable as a polished public distribution path:
+`MAC_CSC_LINK` is passed to electron-builder as `CSC_LINK`, and
+`MAC_CSC_KEY_PASSWORD` is passed as `CSC_KEY_PASSWORD`. The macOS job also sets
+`HUSH_DESKTOP_NOTARIZE=1`; local package builds keep notarization disabled
+unless that environment variable is explicitly set.
+
+Unsigned artifacts are acceptable for internal development, but they are not
+acceptable as a polished public distribution path:
 
 - macOS users will see Gatekeeper warnings without Developer ID plus notarization;
 - Windows users will see SmartScreen warnings without Authenticode signing;

@@ -2,15 +2,13 @@
 /**
  * electron-builder afterPack hook.
  *
- * CI release builds intentionally run without Apple Developer ID secrets.
- * When macOS code signing is skipped completely, the app bundle can be
- * left with only linker-level ad-hoc signatures on Mach-O files and no
- * sealed resource envelope at the bundle level. Gatekeeper reports that
- * shape as a damaged app.
+ * Local unsigned macOS package builds can be left with only linker-level
+ * ad-hoc signatures on Mach-O files and no sealed resource envelope at the
+ * bundle level. Gatekeeper reports that shape as a damaged app.
  *
- * This hook adds a bundle-level ad-hoc signature only for explicitly
- * unsigned macOS builds. It is not a distribution signature and does not
- * replace Developer ID signing or notarization.
+ * This hook adds a bundle-level ad-hoc signature only when no signing identity
+ * is configured. It is not a distribution signature and does not replace
+ * Developer ID signing or notarization.
  */
 
 const { execFileSync } = require('child_process');
@@ -19,6 +17,10 @@ const { join } = require('path');
 
 function canApplyAdHocFallback(env) {
   return !env.CSC_LINK && !env.CSC_NAME && env.HUSH_DESKTOP_SKIP_ADHOC_SIGN !== '1';
+}
+
+function hasConfiguredSigningIdentity(env) {
+  return Boolean(env.CSC_LINK || env.CSC_NAME);
 }
 
 function verifyBundle(appPath) {
@@ -43,6 +45,7 @@ function adHocSignBundle(appPath, entitlementsPath) {
 
 module.exports = async function afterPack(context) {
   if (context.electronPlatformName !== 'darwin') return;
+  if (hasConfiguredSigningIdentity(process.env)) return;
 
   const appPath = join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`);
   try {
@@ -62,4 +65,5 @@ module.exports = async function afterPack(context) {
 
 module.exports._private = {
   canApplyAdHocFallback,
+  hasConfiguredSigningIdentity,
 };

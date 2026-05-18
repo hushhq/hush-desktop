@@ -36,7 +36,8 @@ try {
   process.exit(0);
 }
 
-const hasDeveloperID = /Developer ID Application/.test(identities);
+const hasDeveloperID =
+  /Developer ID Application/.test(identities) || Boolean(process.env.CSC_LINK || process.env.CSC_NAME);
 const hasAppleDev    = /Apple Development/.test(identities);
 const hasNotarize    = Boolean(process.env.APPLE_ID || process.env.APPLE_API_KEY_ID);
 

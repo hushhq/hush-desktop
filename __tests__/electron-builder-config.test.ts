@@ -7,25 +7,36 @@ const require = createRequire(import.meta.url);
 const config = require('../electron-builder.config.js');
 const afterPack = require('../scripts/after-pack.cjs');
 
-function loadConfigWithReleaseFlag(value: string | undefined) {
+function loadConfigWithEnv(env: Record<string, string | undefined>) {
   const configPath = require.resolve('../electron-builder.config.js');
-  const previous = process.env.HUSH_DESKTOP_RELEASE_BUILD;
+  const previousValues = new Map<string, string | undefined>();
   delete require.cache[configPath];
-  if (value === undefined) {
-    delete process.env.HUSH_DESKTOP_RELEASE_BUILD;
-  } else {
-    process.env.HUSH_DESKTOP_RELEASE_BUILD = value;
+
+  for (const [key, value] of Object.entries(env)) {
+    previousValues.set(key, process.env[key]);
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
   }
+
   try {
     return require('../electron-builder.config.js');
   } finally {
     delete require.cache[configPath];
-    if (previous === undefined) {
-      delete process.env.HUSH_DESKTOP_RELEASE_BUILD;
-    } else {
-      process.env.HUSH_DESKTOP_RELEASE_BUILD = previous;
+    for (const [key, value] of previousValues.entries()) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
     }
   }
+}
+
+function loadConfigWithReleaseFlag(value: string | undefined) {
+  return loadConfigWithEnv({ HUSH_DESKTOP_RELEASE_BUILD: value });
 }
 
 describe('electron-builder app identity', () => {
@@ -61,6 +72,19 @@ describe('electron-builder macOS media entitlements', () => {
   });
 });
 
+describe('electron-builder macOS notarization', () => {
+  it('keeps notarization disabled unless release CI opts in', () => {
+    const localConfig = loadConfigWithEnv({ HUSH_DESKTOP_NOTARIZE: undefined });
+    expect(localConfig.mac?.notarize).toBe(false);
+  });
+
+  it('enables hardened runtime and notarization for signed release CI', () => {
+    const releaseConfig = loadConfigWithEnv({ HUSH_DESKTOP_NOTARIZE: '1' });
+    expect(releaseConfig.mac?.hardenedRuntime).toBe(true);
+    expect(releaseConfig.mac?.notarize).toBe(true);
+  });
+});
+
 describe('electron-builder macOS signing fallback', () => {
   it('runs the afterPack hook so unsigned CI bundles still get sealed', () => {
     expect(config.afterPack).toBe('scripts/after-pack.cjs');
@@ -87,6 +111,16 @@ describe('electron-builder macOS signing fallback', () => {
     ).toBe(false);
 
     expect(afterPack._private.canApplyAdHocFallback({})).toBe(true);
+  });
+
+  it('skips the pre-signing fallback path when Developer ID credentials are configured', () => {
+    expect(afterPack._private.hasConfiguredSigningIdentity({})).toBe(false);
+    expect(afterPack._private.hasConfiguredSigningIdentity({ CSC_LINK: 'base64-cert' })).toBe(true);
+    expect(
+      afterPack._private.hasConfiguredSigningIdentity({
+        CSC_NAME: 'Developer ID Application: Example',
+      }),
+    ).toBe(true);
   });
 });
 
