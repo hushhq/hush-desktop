@@ -48,21 +48,29 @@ workflow requires these repository secrets for the macOS matrix job:
 |-|-|
 | `MAC_CSC_LINK` | Base64-encoded Developer ID Application certificate |
 | `MAC_CSC_KEY_PASSWORD` | Certificate password |
-| `APPLE_ID` | Apple notarization account |
-| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific Apple password |
+| `MAC_CSC_NAME` | Optional exact signing identity name; defaults to `Developer ID Application` |
+| `APPLE_API_KEY` | App Store Connect API key `.p8` contents |
+| `APPLE_API_KEY_ID` | App Store Connect API key id |
+| `APPLE_API_ISSUER` | App Store Connect issuer id |
 | `APPLE_TEAM_ID` | Apple team id |
 | `WIN_CSC_LINK` | Base64-encoded Windows Authenticode certificate |
 | `WIN_CSC_KEY_PASSWORD` | Certificate password |
 
 `MAC_CSC_LINK` is passed to electron-builder as `CSC_LINK`, and
-`MAC_CSC_KEY_PASSWORD` is passed as `CSC_KEY_PASSWORD`. The macOS job also pins
-`CSC_NAME=Developer ID Application` so an Apple Development, Mac Development,
-Apple Distribution, or Developer ID Installer certificate fails before
-notarization. `APPLE_API_KEY` stores the `.p8` file contents in GitHub secrets;
-the workflow writes it to a private temporary file and passes that file path to
-electron-builder because `notarytool` requires a filesystem path. Local package
-builds keep notarization disabled unless `HUSH_DESKTOP_NOTARIZE` is explicitly
-set.
+`MAC_CSC_KEY_PASSWORD` is passed as `CSC_KEY_PASSWORD`. The macOS job pins
+`CSC_NAME` to `MAC_CSC_NAME` when configured, otherwise `Developer ID
+Application`, so an Apple Development, Mac Development, Apple Distribution, or
+Developer ID Installer certificate fails before notarization.
+
+`APPLE_API_KEY` stores the `.p8` file contents in GitHub secrets. The workflow
+writes it to a private temporary file because `notarytool` requires a filesystem
+path. Release CI disables electron-builder's inline notarization
+(`HUSH_DESKTOP_NOTARIZE=0`) and runs `scripts/notarize-mac-release-artifacts.cjs`
+after packaging instead. That script submits every final macOS DMG and updater
+ZIP, logs the Apple submission id, polls status once per minute, staples DMGs,
+and fails the job with the Apple notary log on rejection or timeout. Local
+package builds keep notarization disabled unless `HUSH_DESKTOP_NOTARIZE` is
+explicitly set.
 
 The macOS job must verify the final downloadable DMG and ZIP artifacts with
 `codesign`, `spctl`, and `stapler` before upload. A release is not valid just

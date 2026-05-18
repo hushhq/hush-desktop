@@ -26,14 +26,18 @@ jobs:
             runner: macos-latest
             script: dist:mac
             artifact: hush-desktop-mac
+            timeout_minutes: 240
           - platform: windows
             runner: windows-latest
             script: dist:win
             artifact: hush-desktop-windows
+            timeout_minutes: 60
           - platform: linux
             runner: ubuntu-latest
             script: dist:linux
             artifact: hush-desktop-linux
+            timeout_minutes: 60
+    timeout-minutes: ${{ matrix.timeout_minutes }}
 
     steps:
       - name: Checkout hush-desktop
@@ -78,7 +82,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/apple-notary"
           chmod 700 "$RUNNER_TEMP/apple-notary"
-          printf '%s' "$APPLE_API_KEY_CONTENT" > "$RUNNER_TEMP/apple-notary/AuthKey_${APPLE_API_KEY_ID}.p8"
+          printf '%s\n' "$APPLE_API_KEY_CONTENT" > "$RUNNER_TEMP/apple-notary/AuthKey_${APPLE_API_KEY_ID}.p8"
           chmod 600 "$RUNNER_TEMP/apple-notary/AuthKey_${APPLE_API_KEY_ID}.p8"
         env:
           APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY }}
@@ -91,14 +95,24 @@ jobs:
         env:
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          CSC_NAME: Developer ID Application
+          CSC_NAME: ${{ secrets.MAC_CSC_NAME || 'Developer ID Application' }}
           APPLE_API_KEY: ${{ runner.temp }}/apple-notary/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          HUSH_DESKTOP_NOTARIZE: '1'
+          HUSH_DESKTOP_NOTARIZE: '0'
           HUSH_DESKTOP_RELEASE_BUILD: '1'
           HUSH_DESKTOP_STRICT_RELEASE: '1'
+
+      - name: Notarize macOS artifacts
+        if: matrix.platform == 'mac'
+        run: node scripts/notarize-mac-release-artifacts.cjs
+        working-directory: hush-desktop
+        env:
+          APPLE_API_KEY: ${{ runner.temp }}/apple-notary/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          HUSH_NOTARY_TIMEOUT_MINUTES: '180'
 
       - name: Verify signed macOS artifacts
         if: matrix.platform == 'mac'

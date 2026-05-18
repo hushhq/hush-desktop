@@ -10,10 +10,11 @@
  * extraResources so it lives outside the asar (required for net.fetch file:// serving).
  *
  * Code signing posture: release CI provides Developer ID credentials through
- * CSC_* environment variables and opts into notarization with
- * HUSH_DESKTOP_NOTARIZE=1. Local unsigned package builds keep notarization off
- * and use the afterPack ad-hoc fallback only when no signing identity is
- * configured.
+ * CSC_* environment variables, then notarizes the final DMG/ZIP artifacts in a
+ * separate workflow step with visible notarytool polling. Local package builds
+ * keep electron-builder notarization disabled unless HUSH_DESKTOP_NOTARIZE=1
+ * is explicitly set, and use the afterPack ad-hoc fallback only when no signing
+ * identity is configured.
  *
  * Note: this file must remain CommonJS (module.exports). The package.json has no
  * "type":"module", so electron-builder loads .js configs as CJS.

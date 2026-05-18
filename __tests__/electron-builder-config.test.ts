@@ -78,7 +78,7 @@ describe('electron-builder macOS notarization', () => {
     expect(localConfig.mac?.notarize).toBe(false);
   });
 
-  it('enables hardened runtime and notarization for signed release CI', () => {
+  it('supports explicit electron-builder notarization opt-in', () => {
     const releaseConfig = loadConfigWithEnv({ HUSH_DESKTOP_NOTARIZE: '1' });
     expect(releaseConfig.mac?.hardenedRuntime).toBe(true);
     expect(releaseConfig.mac?.notarize).toBe(true);
