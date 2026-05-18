@@ -64,6 +64,11 @@ electron-builder because `notarytool` requires a filesystem path. Local package
 builds keep notarization disabled unless `HUSH_DESKTOP_NOTARIZE` is explicitly
 set.
 
+The macOS job must verify the final downloadable DMG and ZIP artifacts with
+`codesign`, `spctl`, and `stapler` before upload. A release is not valid just
+because notarization was attempted; the final artifact users download must pass
+Gatekeeper validation.
+
 Unsigned artifacts are acceptable for internal development, but they are not
 acceptable as a polished public distribution path:
 
