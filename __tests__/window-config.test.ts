@@ -28,7 +28,7 @@ describe('buildWindowOptions', () => {
     const winOpts = buildWindowOptions('/fake/preload.js', 'win32');
     expect(winOpts.titleBarStyle).toBe('hidden');
     expect(winOpts.titleBarOverlay).toEqual({
-      color: '#09090b',
+      color: '#00000000',
       symbolColor: '#EEEEF0',
       height: 40,
     });

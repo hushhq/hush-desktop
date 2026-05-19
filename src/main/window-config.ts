@@ -51,7 +51,7 @@ function buildPlatformChrome(
     return {
       titleBarStyle: 'hidden',
       titleBarOverlay: {
-        color: HUSH_BLACK,
+        color: TRANSPARENT_BACKGROUND,
         symbolColor: HUSH_TEXT,
         height: WIN_TITLEBAR_HEIGHT,
       },
