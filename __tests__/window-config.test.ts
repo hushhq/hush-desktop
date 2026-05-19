@@ -40,6 +40,27 @@ describe('buildWindowOptions', () => {
     expect(linuxOpts.titleBarOverlay).toBeUndefined();
   });
 
+  it('enables sidebar vibrancy with a transparent backing on macOS', () => {
+    const macOpts = buildWindowOptions('/fake/preload.js', 'darwin');
+    expect(macOpts.vibrancy).toBe('sidebar');
+    expect(macOpts.visualEffectState).toBe('active');
+    expect(macOpts.backgroundColor).toBe('#00000000');
+  });
+
+  it('enables mica backgroundMaterial with a transparent backing on Windows', () => {
+    const winOpts = buildWindowOptions('/fake/preload.js', 'win32');
+    expect(winOpts.backgroundMaterial).toBe('mica');
+    expect(winOpts.backgroundColor).toBe('#00000000');
+    expect(winOpts.vibrancy).toBeUndefined();
+  });
+
+  it('falls back to a solid backgroundColor with no native material on Linux', () => {
+    const linuxOpts = buildWindowOptions('/fake/preload.js', 'linux');
+    expect(linuxOpts.vibrancy).toBeUndefined();
+    expect(linuxOpts.backgroundMaterial).toBeUndefined();
+    expect(linuxOpts.backgroundColor).toBe('#09090b');
+  });
+
   it('sets contextIsolation to true', () => {
     expect(opts.webPreferences?.contextIsolation).toBe(true);
   });

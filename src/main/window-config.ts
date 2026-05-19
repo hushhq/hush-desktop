@@ -3,6 +3,10 @@ import type { BrowserWindowConstructorOptions } from 'electron';
 const HUSH_BLACK = '#09090b';
 const HUSH_TEXT = '#EEEEF0';
 const WIN_TITLEBAR_HEIGHT = 40;
+// Fully transparent background. Required so native vibrancy (macOS) /
+// backgroundMaterial mica (Win11) actually shows through the window
+// instead of being covered by an opaque pre-paint fill.
+const TRANSPARENT_BACKGROUND = '#00000000';
 
 /**
  * Pre-auth window floor.
@@ -57,6 +61,46 @@ function buildPlatformChrome(
 }
 
 /**
+ * Per-platform native window material so the authenticated shell's
+ * server-rail / channel-sidebar / topbar chrome blends with the OS
+ * desktop surface instead of reading as a flat gray slab.
+ *
+ * - macOS: NSVisualEffectView with `sidebar` material (subtle, neutral,
+ *   matches what native sidebar surfaces use in Finder, Mail, etc.).
+ *   `visualEffectState: 'active'` keeps the material vibrant even when
+ *   the window is in the background, so the shell does not flip to a
+ *   different tint on focus changes.
+ *   The window paints with a fully transparent background so the
+ *   vibrancy layer is visible from the first frame; CSS keeps the
+ *   chat content opaque.
+ * - Windows 11: `backgroundMaterial: 'mica'` is the conservative
+ *   Windows analog. Older Windows builds where mica is unsupported
+ *   ignore the hint and fall back to the transparent backgroundColor
+ *   plus the CSS chrome color, which still reads as a regular dark
+ *   sidebar surface.
+ * - Linux: no native material — keep the solid Hush black so the
+ *   shell does not show a transparent void.
+ */
+function buildPlatformMaterial(
+  platform: NodeJS.Platform,
+): Partial<BrowserWindowConstructorOptions> {
+  if (platform === 'darwin') {
+    return {
+      backgroundColor: TRANSPARENT_BACKGROUND,
+      vibrancy: 'sidebar',
+      visualEffectState: 'active',
+    };
+  }
+  if (platform === 'win32') {
+    return {
+      backgroundColor: TRANSPARENT_BACKGROUND,
+      backgroundMaterial: 'mica',
+    };
+  }
+  return { backgroundColor: HUSH_BLACK };
+}
+
+/**
  * Returns secure BrowserWindow construction options.
  * Extracted as a pure function so security defaults can be unit-tested
  * without instantiating Electron.
@@ -72,7 +116,7 @@ export function buildWindowOptions(
     minHeight: AUTH_MIN_WINDOW_HEIGHT,
     show: false,
     resizable: true,
-    backgroundColor: HUSH_BLACK,
+    ...buildPlatformMaterial(platform),
     ...buildPlatformChrome(platform),
     webPreferences: {
       preload: preloadPath,
