@@ -26,7 +26,7 @@ describe('buildTrayMenuTemplate', () => {
       undefined as never,
       undefined as never,
     );
-    expect(onShow).toHaveBeenCalledOnce();
+    expect(onShow).toHaveBeenCalledWith();
     expect(onCheckForUpdates).not.toHaveBeenCalled();
     expect(onQuit).not.toHaveBeenCalled();
   });
@@ -41,7 +41,7 @@ describe('buildTrayMenuTemplate', () => {
       undefined as never,
       undefined as never,
     );
-    expect(onCheckForUpdates).toHaveBeenCalledOnce();
+    expect(onCheckForUpdates).toHaveBeenCalledWith();
     expect(onShow).not.toHaveBeenCalled();
     expect(onQuit).not.toHaveBeenCalled();
   });
@@ -56,7 +56,7 @@ describe('buildTrayMenuTemplate', () => {
       undefined as never,
       undefined as never,
     );
-    expect(onQuit).toHaveBeenCalledOnce();
+    expect(onQuit).toHaveBeenCalledWith();
     expect(onShow).not.toHaveBeenCalled();
   });
 });
