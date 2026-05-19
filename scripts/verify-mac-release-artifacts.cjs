@@ -49,7 +49,7 @@ function findAppBundle(directory) {
 function verifyApp(appPath) {
   execFile('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=4', appPath]);
   execFile('/usr/bin/xcrun', ['stapler', 'validate', appPath]);
-  execFile('/usr/sbin/spctl', ['-a', '-vvv', '-t', 'open', appPath]);
+  execFile('/usr/sbin/spctl', ['-a', '-vvv', '-t', 'exec', appPath]);
   console.log(`[verify-mac-release] trusted app: ${appPath}`);
 }
 

@@ -26,7 +26,7 @@ jobs:
             runner: macos-latest
             script: dist:mac
             artifact: hush-desktop-mac
-            timeout_minutes: 90
+            timeout_minutes: 150
           - platform: windows
             runner: windows-latest
             script: dist:win
@@ -101,7 +101,7 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           HUSH_DESKTOP_NOTARIZE_APP: '1'
-          HUSH_NOTARY_TIMEOUT_MINUTES: '45'
+          HUSH_NOTARY_TIMEOUT_MINUTES: '60'
           HUSH_DESKTOP_RELEASE_BUILD: '1'
           HUSH_DESKTOP_STRICT_RELEASE: '1'
 
