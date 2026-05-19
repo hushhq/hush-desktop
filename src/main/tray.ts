@@ -36,10 +36,10 @@ export interface TrayHooks {
  */
 export function buildTrayMenuTemplate(hooks: TrayHooks): MenuItemConstructorOptions[] {
   return [
-    { label: 'Show Hush', click: hooks.onShow },
-    { label: 'Check for Updates...', click: hooks.onCheckForUpdates },
+    { label: 'Show Hush', click: () => hooks.onShow() },
+    { label: 'Check for Updates...', click: () => hooks.onCheckForUpdates() },
     { type: 'separator' },
-    { label: 'Quit Hush', click: hooks.onQuit },
+    { label: 'Quit Hush', click: () => hooks.onQuit() },
   ];
 }
 
@@ -180,7 +180,7 @@ export function createAppTray(hooks: TrayHooks): Tray | null {
   // the context menu on left-click by default, but we still wire the
   // `click` handler so trays that opt out (or KDE's behaviour switch)
   // get the same affordance.
-  tray.on('click', hooks.onShow);
+  tray.on('click', () => hooks.onShow());
 
   recordEvent('tray', 'created', { isPackaged: app.isPackaged });
   return tray;
