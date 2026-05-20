@@ -1,6 +1,28 @@
 import type { DesktopUpdateState } from './desktop-update';
 
 /**
+ * User-selectable native window material identifiers exchanged across the
+ * preload boundary. Mirrors the renderer-side type in
+ * `hush-web/src/lib/appearancePreferences.ts`.
+ *
+ * - `"auto"`: keep the conservative default picked by `window-config.ts`.
+ * - macOS: a curated subset of `NSVisualEffectView` materials supported
+ *   by Electron's `setVibrancy()`.
+ * - Windows 11: the supported subset of `backgroundMaterial` values for
+ *   `setBackgroundMaterial()`.
+ *
+ * Linux has no native material and is intentionally not represented here.
+ */
+export type GlassMaterial =
+  | 'auto'
+  | 'sidebar'
+  | 'under-window'
+  | 'menu'
+  | 'headerView'
+  | 'mica'
+  | 'acrylic';
+
+/**
  * Shape of window.hushDesktop exposed by the preload bridge.
  * Kept narrow by design — add methods here only when main-process access is provably needed.
  */
@@ -33,6 +55,16 @@ export interface DesktopApi {
    * the OS resize handle reflects the new minimum.
    */
   setMinWindowFloor(profile: 'auth' | 'app'): Promise<void>;
+  /**
+   * Applies a user-selected native window material to the focused window
+   * at runtime. Routed through the main process because only the main
+   * process can call `BrowserWindow.setVibrancy` (macOS) /
+   * `BrowserWindow.setBackgroundMaterial` (Win11). Unsupported pairings
+   * (e.g. `mica` on macOS, `sidebar` on Win11, anything on Linux) resolve
+   * without taking effect — the renderer must not rely on this for
+   * platform detection.
+   */
+  setGlassMaterial(material: GlassMaterial): Promise<void>;
   /**
    * Measures round-trip latency to `${instanceUrl}/api/health` in the main
    * process so the request bypasses renderer COEP / CORS constraints.
