@@ -87,7 +87,12 @@ function buildPlatformMaterial(
   if (platform === 'darwin') {
     return {
       backgroundColor: TRANSPARENT_BACKGROUND,
-      vibrancy: 'sidebar',
+      // `menu` is the only macOS vibrancy currently exposed to users.
+      // The Material picker is hidden, so the BrowserWindow init
+      // material must match `glass-material.ts`' `auto` resolution so
+      // first paint and the post-IPC `auto` apply land on the same
+      // NSVisualEffectView material.
+      vibrancy: 'menu',
       visualEffectState: 'active',
     };
   }
