@@ -16,6 +16,8 @@ import {
   requestDesktopUpdateCheck,
 } from '../update/desktopUpdaterRegistry';
 import { applyGlassMaterialToBrowserWindow } from '../glass-material';
+import { computeGlassCapabilities } from '../glass-capabilities';
+import { release as osRelease } from 'node:os';
 
 /**
  * Two-level resize floor: tall for the pre-login LinkDevice surface,
@@ -117,10 +119,12 @@ export function registerIpcHandlers(): void {
     const win = BrowserWindow.fromWebContents(event.sender);
     windowFloor.setMinFloor(win, profile);
   });
+  const glassCapabilities = computeGlassCapabilities(process.platform, osRelease());
   ipcMain.handle(IPC_CHANNEL.WINDOW_SET_GLASS_MATERIAL, (event, material) => {
     const win = BrowserWindow.fromWebContents(event.sender);
-    applyGlassMaterialToBrowserWindow(win, material);
+    applyGlassMaterialToBrowserWindow(win, material, glassCapabilities);
   });
+  ipcMain.handle(IPC_CHANNEL.WINDOW_GET_GLASS_CAPABILITIES, () => glassCapabilities);
   ipcMain.handle(
     IPC_CHANNEL.NETWORK_MEASURE_INSTANCE_HEALTH,
     (_event, instanceUrl) => measureInstanceHealth(instanceUrl, buildDefaultFetch()),

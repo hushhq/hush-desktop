@@ -1,32 +1,14 @@
 import type { BrowserWindow } from 'electron';
 import type { GlassMaterial } from '../shared/desktop-api';
+import type { GlassCapabilities } from './glass-capabilities';
 
 /**
- * Per-platform whitelist of native window materials Hush is willing to
- * apply at runtime. Each entry comes from the Electron 34 documentation:
- *
- * - macOS (`BrowserWindow.setVibrancy`): a conservative subset of
- *   `NSVisualEffectView` materials that read as "subtle, neutral chrome"
- *   rather than fully transparent panels.
- * - Windows 11 (`BrowserWindow.setBackgroundMaterial`): only the two
- *   materials that match Hush's intended look. `tabbed` is omitted
- *   because the renderer does not draw a tab strip.
- *
- * `auto` is the sentinel that means "leave the platform default in
- * place". The handler resolves it to a no-op so the conservative pick
- * from `window-config.ts` stays in effect.
+ * Per-platform default applied when the renderer selects the `auto`
+ * sentinel. Selecting `auto` after a manual pick must revert the window
+ * to this default, so the implementation is intentionally *not* a no-op.
  */
-const MACOS_MATERIALS: ReadonlySet<GlassMaterial> = new Set([
-  'sidebar',
-  'under-window',
-  'menu',
-  'headerView',
-]);
-const WIN32_MATERIALS: ReadonlySet<GlassMaterial> = new Set(['mica', 'acrylic']);
-
-/** Defaults used when the user picks `"auto"` on each platform. */
-const MACOS_DEFAULT_VIBRANCY = 'sidebar';
-const WIN32_DEFAULT_MATERIAL = 'mica';
+const MACOS_DEFAULT_VIBRANCY = 'sidebar' as const;
+const WIN32_DEFAULT_MATERIAL = 'mica' as const;
 
 /**
  * Narrow contract `applyGlassMaterial` consumes from the focused window.
@@ -35,14 +17,11 @@ const WIN32_DEFAULT_MATERIAL = 'mica';
  */
 export interface MaterialApplyTarget {
   setVibrancy?: (
-    type:
-      | 'sidebar'
-      | 'under-window'
-      | 'menu'
-      | 'headerView'
-      | null,
+    type: 'sidebar' | 'under-window' | 'menu' | 'headerView' | null,
   ) => void;
-  setBackgroundMaterial?: (material: 'auto' | 'none' | 'mica' | 'acrylic' | 'tabbed') => void;
+  setBackgroundMaterial?: (
+    material: 'auto' | 'none' | 'mica' | 'acrylic' | 'tabbed',
+  ) => void;
 }
 
 export class GlassMaterialError extends Error {
@@ -52,50 +31,54 @@ export class GlassMaterialError extends Error {
   }
 }
 
-function isGlassMaterial(value: unknown): value is GlassMaterial {
-  return (
-    value === 'auto' ||
-    MACOS_MATERIALS.has(value as GlassMaterial) ||
-    WIN32_MATERIALS.has(value as GlassMaterial)
-  );
-}
-
 /**
- * Validates the input and applies the requested material to the window
- * if the host platform supports it. Returns silently on Linux and on
- * supported platforms when the renderer asks for a material the host
- * cannot honour — those combinations are explicit in the UI, so the
- * handler does not need to surface them as errors.
+ * Validates the input against the host capability set and applies the
+ * requested material to the window when the platform supports it.
+ *
+ * Contract:
+ *   - `auto` resets the window to the platform default (sidebar on
+ *     macOS, mica on Win11 22H2+). It is not a no-op.
+ *   - Any non-`auto` value must appear in `capabilities.materials`. Stale
+ *     cross-platform values (e.g. a Windows-shaped `mica` arriving on
+ *     macOS) are rejected with {@link GlassMaterialError} so the
+ *     renderer's normalization is the single source of truth.
+ *   - When the host reports `materialSwitchingSupported: false`
+ *     (Linux, Win10/early-Win11), the call resolves without throwing
+ *     and without touching the window — the renderer never offers a
+ *     picker in that case but the IPC layer stays robust against
+ *     race conditions.
  */
 export function applyGlassMaterial(
   win: MaterialApplyTarget | null,
   material: unknown,
-  platform: NodeJS.Platform = process.platform,
+  capabilities: GlassCapabilities,
 ): void {
   if (!win) return;
-  if (!isGlassMaterial(material)) {
+  if (typeof material !== 'string') {
     throw new GlassMaterialError(
       `window:set-glass-material: invalid material ${JSON.stringify(material)}`,
     );
   }
-  if (platform === 'darwin') {
+  if (!capabilities.materialSwitchingSupported) return;
+  const allowed = new Set(capabilities.materials);
+  if (!allowed.has(material as GlassMaterial)) {
+    throw new GlassMaterialError(
+      `window:set-glass-material: material ${JSON.stringify(material)} is not in the host capability set`,
+    );
+  }
+  if (capabilities.platform === 'darwin') {
     if (typeof win.setVibrancy !== 'function') return;
     const resolved = material === 'auto' ? MACOS_DEFAULT_VIBRANCY : material;
-    if (!MACOS_MATERIALS.has(resolved as GlassMaterial)) return;
     win.setVibrancy(
       resolved as 'sidebar' | 'under-window' | 'menu' | 'headerView',
     );
     return;
   }
-  if (platform === 'win32') {
+  if (capabilities.platform === 'win32') {
     if (typeof win.setBackgroundMaterial !== 'function') return;
     const resolved = material === 'auto' ? WIN32_DEFAULT_MATERIAL : material;
-    if (!WIN32_MATERIALS.has(resolved as GlassMaterial)) return;
     win.setBackgroundMaterial(resolved as 'mica' | 'acrylic');
-    return;
   }
-  // Linux and unknown platforms: native material not supported. The UI
-  // already gates the picker so this branch is a safety net.
 }
 
 /**
@@ -105,6 +88,7 @@ export function applyGlassMaterial(
 export function applyGlassMaterialToBrowserWindow(
   win: BrowserWindow | null,
   material: unknown,
+  capabilities: GlassCapabilities,
 ): void {
-  applyGlassMaterial(win as MaterialApplyTarget | null, material);
+  applyGlassMaterial(win as MaterialApplyTarget | null, material, capabilities);
 }

@@ -5,11 +5,14 @@ import type { DesktopUpdateState } from './desktop-update';
  * preload boundary. Mirrors the renderer-side type in
  * `hush-web/src/lib/appearancePreferences.ts`.
  *
- * - `"auto"`: keep the conservative default picked by `window-config.ts`.
+ * - `"auto"`: reset to the platform default picked by `window-config.ts`
+ *   (sidebar on macOS, mica on Win11 22H2+). Selecting `auto` after a
+ *   manual pick reverts the window to that platform default; it is not a
+ *   no-op.
  * - macOS: a curated subset of `NSVisualEffectView` materials supported
  *   by Electron's `setVibrancy()`.
- * - Windows 11: the supported subset of `backgroundMaterial` values for
- *   `setBackgroundMaterial()`.
+ * - Windows 11 22H2+: the supported subset of `backgroundMaterial`
+ *   values for `setBackgroundMaterial()`.
  *
  * Linux has no native material and is intentionally not represented here.
  */
@@ -21,6 +24,29 @@ export type GlassMaterial =
   | 'headerView'
   | 'mica'
   | 'acrylic';
+
+/**
+ * Reason the desktop host cannot expose a Material picker. Surfaced for
+ * diagnostics + tests; the renderer branches on `materialSwitchingSupported`.
+ */
+export type GlassUnsupportedReason =
+  | 'linux-no-native-material'
+  | 'win32-pre-22h2'
+  | 'win32-unparseable-release';
+
+/**
+ * Capability payload the renderer reads at startup to decide whether to
+ * render the Material picker and which entries to show. Computed once in
+ * the main process from the host platform plus OS release information
+ * (Win11 22H2 requires NT build 22621+) so the renderer never has to
+ * second-guess Electron's runtime behaviour.
+ */
+export interface GlassCapabilities {
+  readonly platform: NodeJS.Platform;
+  readonly materialSwitchingSupported: boolean;
+  readonly materials: readonly GlassMaterial[];
+  readonly unsupportedReason: GlassUnsupportedReason | null;
+}
 
 /**
  * Shape of window.hushDesktop exposed by the preload bridge.
@@ -59,12 +85,22 @@ export interface DesktopApi {
    * Applies a user-selected native window material to the focused window
    * at runtime. Routed through the main process because only the main
    * process can call `BrowserWindow.setVibrancy` (macOS) /
-   * `BrowserWindow.setBackgroundMaterial` (Win11). Unsupported pairings
-   * (e.g. `mica` on macOS, `sidebar` on Win11, anything on Linux) resolve
-   * without taking effect — the renderer must not rely on this for
-   * platform detection.
+   * `BrowserWindow.setBackgroundMaterial` (Win11 22H2+). The renderer
+   * must call {@link DesktopApi.getGlassCapabilities} first and only
+   * send identifiers from `capabilities.materials`; values outside that
+   * set will be rejected. `'auto'` resets the window to the platform
+   * default chosen in `window-config.ts`.
    */
   setGlassMaterial(material: GlassMaterial): Promise<void>;
+  /**
+   * Returns a snapshot of native window material capabilities for the
+   * current host. Computed in main from `process.platform` plus
+   * `os.release()` so the renderer cannot disagree with what Electron
+   * will actually honour (Windows 11 22H2+ for `backgroundMaterial`,
+   * macOS for `setVibrancy`, nothing on Linux). Safe to call multiple
+   * times — the value is stable for the lifetime of the process.
+   */
+  getGlassCapabilities(): Promise<GlassCapabilities>;
   /**
    * Measures round-trip latency to `${instanceUrl}/api/health` in the main
    * process so the request bypasses renderer COEP / CORS constraints.
