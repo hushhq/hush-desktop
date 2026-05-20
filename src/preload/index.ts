@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import type { DesktopApi } from '../shared/desktop-api';
+import type { DesktopApi, GlassCapabilities } from '../shared/desktop-api';
 import type { DesktopUpdateState } from '../shared/desktop-update';
 import { IPC_CHANNEL } from '../shared/ipc-channels';
 
@@ -19,6 +19,12 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IPC_CHANNEL.VAULT_CLEAR_SESSION_KEY, userId),
   setMinWindowFloor: (profile) =>
     ipcRenderer.invoke(IPC_CHANNEL.WINDOW_SET_MIN_FLOOR, profile),
+  setGlassMaterial: (material) =>
+    ipcRenderer.invoke(IPC_CHANNEL.WINDOW_SET_GLASS_MATERIAL, material),
+  getGlassCapabilities: () =>
+    ipcRenderer.invoke(
+      IPC_CHANNEL.WINDOW_GET_GLASS_CAPABILITIES,
+    ) as Promise<GlassCapabilities>,
   measureInstanceHealth: (instanceUrl) =>
     ipcRenderer.invoke(IPC_CHANNEL.NETWORK_MEASURE_INSTANCE_HEALTH, instanceUrl),
   getDesktopUpdateState: () =>
