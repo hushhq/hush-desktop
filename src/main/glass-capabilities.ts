@@ -17,17 +17,18 @@ export const MACOS_GLASS_MATERIALS: readonly GlassMaterial[] = [
  * and later. The Windows 11 22H2 release maps to NT build number 22621,
  * which is what `os.release()` reports on those hosts (e.g.
  * `"10.0.22621.1234"`). Older Windows 11 builds (22000) silently ignore
- * the call, so the picker must stay disabled there too.
+ * the call, so runtime material switching must stay disabled there too.
  */
 export const WIN11_22H2_BUILD = 22621;
 
 export const WIN32_GLASS_MATERIALS: readonly GlassMaterial[] = ['mica', 'acrylic'];
 
 /**
- * Snapshot the renderer needs to gate the Material picker. Computed in
- * main from the host platform and OS release so the renderer never has
- * to second-guess Electron capabilities. `materials` always includes the
- * `auto` sentinel first when material switching is supported.
+ * Snapshot the renderer needs before applying a native material.
+ * Computed in main from the host platform and OS release so the
+ * renderer never has to second-guess Electron capabilities. `materials`
+ * always includes the `auto` sentinel first when material switching is
+ * supported.
  */
 export interface GlassCapabilities {
   readonly platform: NodeJS.Platform;

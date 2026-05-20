@@ -6,7 +6,7 @@ import type { DesktopUpdateState } from './desktop-update';
  * `hush-web/src/lib/appearancePreferences.ts`.
  *
  * - `"auto"`: reset to the platform default picked by `window-config.ts`
- *   (sidebar on macOS, mica on Win11 22H2+). Selecting `auto` after a
+ *   (menu on macOS, mica on Win11 22H2+). Selecting `auto` after a
  *   manual pick reverts the window to that platform default; it is not a
  *   no-op.
  * - macOS: a curated subset of `NSVisualEffectView` materials supported
@@ -26,8 +26,9 @@ export type GlassMaterial =
   | 'acrylic';
 
 /**
- * Reason the desktop host cannot expose a Material picker. Surfaced for
- * diagnostics + tests; the renderer branches on `materialSwitchingSupported`.
+ * Reason the desktop host cannot apply runtime native materials.
+ * Surfaced for diagnostics + tests; the renderer branches on
+ * `materialSwitchingSupported`.
  */
 export type GlassUnsupportedReason =
   | 'linux-no-native-material'
@@ -35,11 +36,11 @@ export type GlassUnsupportedReason =
   | 'win32-unparseable-release';
 
 /**
- * Capability payload the renderer reads at startup to decide whether to
- * render the Material picker and which entries to show. Computed once in
- * the main process from the host platform plus OS release information
- * (Win11 22H2 requires NT build 22621+) so the renderer never has to
- * second-guess Electron's runtime behaviour.
+ * Capability payload the renderer reads at startup before applying the
+ * stored native material preference. Computed once in the main process
+ * from the host platform plus OS release information (Win11 22H2
+ * requires NT build 22621+) so the renderer never has to second-guess
+ * Electron's runtime behaviour.
  */
 export interface GlassCapabilities {
   readonly platform: NodeJS.Platform;
