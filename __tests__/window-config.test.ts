@@ -40,9 +40,9 @@ describe('buildWindowOptions', () => {
     expect(linuxOpts.titleBarOverlay).toBeUndefined();
   });
 
-  it('enables sidebar vibrancy with a transparent backing on macOS', () => {
+  it('enables menu vibrancy with a transparent backing on macOS', () => {
     const macOpts = buildWindowOptions('/fake/preload.js', 'darwin');
-    expect(macOpts.vibrancy).toBe('sidebar');
+    expect(macOpts.vibrancy).toBe('menu');
     expect(macOpts.visualEffectState).toBe('active');
     expect(macOpts.backgroundColor).toBe('#00000000');
   });

@@ -6,8 +6,13 @@ import type { GlassCapabilities } from './glass-capabilities';
  * Per-platform default applied when the renderer selects the `auto`
  * sentinel. Selecting `auto` after a manual pick must revert the window
  * to this default, so the implementation is intentionally *not* a no-op.
+ *
+ * macOS uses the `menu` NSVisualEffectView material. It matches the
+ * native menu/popover chrome shading and is the only macOS vibrancy
+ * we currently expose to users, so `auto` and any explicit selection
+ * collapse onto the same value while the picker remains hidden.
  */
-const MACOS_DEFAULT_VIBRANCY = 'sidebar' as const;
+const MACOS_DEFAULT_VIBRANCY = 'menu' as const;
 const WIN32_DEFAULT_MATERIAL = 'mica' as const;
 
 /**

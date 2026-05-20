@@ -39,10 +39,10 @@ const win22000Caps: GlassCapabilities = computeGlassCapabilities(
 const linuxCaps: GlassCapabilities = computeGlassCapabilities('linux', '6.6.0');
 
 describe('applyGlassMaterial', () => {
-  it('resolves "auto" to the conservative macOS vibrancy', () => {
+  it('resolves "auto" to the macOS menu vibrancy default', () => {
     const target = buildTarget();
     applyGlassMaterial(target, 'auto', macCaps);
-    expect(target.vibrancyCalls).toEqual(['sidebar']);
+    expect(target.vibrancyCalls).toEqual(['menu']);
     expect(target.backgroundCalls).toEqual([]);
   });
 
