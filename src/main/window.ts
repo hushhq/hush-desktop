@@ -25,12 +25,7 @@ export function createMainWindow(lifecycle?: LifecycleState, initialPath = '/'):
   // anyway if the renderer never signals, so a broken renderer cannot
   // leave the app invisible. See `window-reveal-gate.ts` for the gating
   // contract.
-  const gate = new WindowRevealGate(win, {
-    onRevealed: () => {
-      if (win.isDestroyed()) return;
-      win.webContents.send(IPC_CHANNEL.WINDOW_REVEALED_EVENT);
-    },
-  });
+  const gate = new WindowRevealGate(win);
   const handleRendererReady = (event: Electron.IpcMainEvent) => {
     if (event.sender !== win.webContents) return;
     gate.notifyRendererReady();

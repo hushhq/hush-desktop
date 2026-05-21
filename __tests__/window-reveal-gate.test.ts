@@ -53,18 +53,13 @@ function buildScheduler() {
 
 function buildWindow(): RevealableWindow & {
   showCalls: number;
-  opacityCalls: number[];
   destroyed: boolean;
 } {
   return {
     showCalls: 0,
-    opacityCalls: [],
     destroyed: false,
     show() {
       this.showCalls += 1;
-    },
-    setOpacity(opacity: number) {
-      this.opacityCalls.push(opacity);
     },
     isDestroyed() {
       return this.destroyed;
@@ -84,68 +79,6 @@ describe('WindowRevealGate', () => {
 
     gate.notifyRendererReady();
     expect(win.showCalls).toBe(1);
-    expect(win.opacityCalls).toEqual([0]);
-    expect(scheduler.armed).toBe(1);
-  });
-
-  it('warms up native material invisibly before restoring opacity', () => {
-    const scheduler = buildScheduler();
-    const win = buildWindow();
-    const onRevealed = vi.fn();
-    const gate = new WindowRevealGate(win, {
-      materialWarmupMs: 80,
-      onRevealed,
-      ...scheduler,
-    });
-
-    gate.notifyRendererReady();
-    gate.notifyElectronReady();
-
-    expect(win.showCalls).toBe(1);
-    expect(win.opacityCalls).toEqual([0]);
-    expect(scheduler.firstTimer()?.ms).toBe(80);
-    expect(onRevealed).not.toHaveBeenCalled();
-
-    scheduler.runAll();
-
-    expect(win.opacityCalls).toEqual([0, 1]);
-    expect(onRevealed).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not restore opacity after the window is destroyed during material warmup', () => {
-    const scheduler = buildScheduler();
-    const win = buildWindow();
-    const gate = new WindowRevealGate(win, scheduler);
-
-    gate.notifyRendererReady();
-    gate.notifyElectronReady();
-    win.destroyed = true;
-    gate.notifyWindowDestroyed();
-    scheduler.runAll();
-
-    expect(win.opacityCalls).toEqual([0]);
-  });
-
-  it('fires revealed immediately when opacity control is unavailable', () => {
-    const scheduler = buildScheduler();
-    const onRevealed = vi.fn();
-    const win: RevealableWindow & { showCalls: number; destroyed: boolean } = {
-      showCalls: 0,
-      destroyed: false,
-      show() {
-        this.showCalls += 1;
-      },
-      isDestroyed() {
-        return this.destroyed;
-      },
-    };
-    const gate = new WindowRevealGate(win, { onRevealed, ...scheduler });
-
-    gate.notifyRendererReady();
-    gate.notifyElectronReady();
-
-    expect(win.showCalls).toBe(1);
-    expect(onRevealed).toHaveBeenCalledTimes(1);
     expect(scheduler.armed).toBe(0);
   });
 
@@ -159,9 +92,8 @@ describe('WindowRevealGate', () => {
 
     gate.notifyElectronReady();
     expect(win.showCalls).toBe(1);
-    // No fallback is armed when both conditions are already met; the
-    // remaining timer is only the material warmup opacity restore.
-    expect(scheduler.armed).toBe(1);
+    // No fallback should be armed when both conditions are already met.
+    expect(scheduler.armed).toBe(0);
   });
 
   it('falls back to revealing the window if renderer-ready never arrives', () => {
@@ -175,7 +107,7 @@ describe('WindowRevealGate', () => {
     scheduler.runAll();
 
     expect(win.showCalls).toBe(1);
-    expect(scheduler.armed).toBe(1);
+    expect(scheduler.armed).toBe(0);
   });
 
   it('honours a custom fallback timeout', () => {
@@ -211,7 +143,7 @@ describe('WindowRevealGate', () => {
     gate.notifyElectronReady();
     expect(scheduler.armed).toBe(1);
     gate.notifyRendererReady();
-    expect(scheduler.armed).toBe(1);
+    expect(scheduler.armed).toBe(0);
     expect(win.showCalls).toBe(1);
   });
 

@@ -113,13 +113,6 @@ export interface DesktopApi {
    */
   notifyRendererReady(): void;
   /**
-   * Subscribes to the main-process cold reveal completion. This fires
-   * after the hidden BrowserWindow has been shown and native material
-   * has had its compositor warmup. The renderer uses it to transition
-   * chrome surfaces from solid startup colour to glass.
-   */
-  onWindowRevealed(listener: () => void): () => void;
-  /**
    * Measures round-trip latency to `${instanceUrl}/api/health` in the main
    * process so the request bypasses renderer COEP / CORS constraints.
    *
