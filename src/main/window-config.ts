@@ -50,6 +50,7 @@ function buildPlatformChrome(
   if (platform === 'win32') {
     return {
       titleBarStyle: 'hidden',
+      roundedCorners: true,
       titleBarOverlay: {
         color: TRANSPARENT_BACKGROUND,
         symbolColor: HUSH_TEXT,
