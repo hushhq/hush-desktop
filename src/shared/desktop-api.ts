@@ -56,7 +56,9 @@ export interface GlassCapabilities {
 export interface DesktopApi {
   readonly isDesktop: true;
   readonly platform: NodeJS.Platform;
+  readonly arch: NodeJS.Architecture;
   getAppVersion(): Promise<string>;
+  getRuntimeInfo(): Promise<DesktopRuntimeInfo>;
   /**
    * Stores the AES-256 wrapping key hex in the main process after PIN unlock.
    * The key lives only in main-process memory — never in renderer storage.
@@ -102,6 +104,14 @@ export interface DesktopApi {
    * times — the value is stable for the lifetime of the process.
    */
   getGlassCapabilities(): Promise<GlassCapabilities>;
+  /**
+   * Tells main that the renderer-side desktop shell has mounted and the
+   * cold-launch window can be revealed. Fire-and-forget; the channel is
+   * idempotent in main, so re-mount (HMR, route reset) does not cause
+   * a second reveal. A reveal fallback in main caps the wait so a
+   * broken renderer cannot leave the window invisible.
+   */
+  notifyRendererReady(): void;
   /**
    * Measures round-trip latency to `${instanceUrl}/api/health` in the main
    * process so the request bypasses renderer COEP / CORS constraints.
@@ -149,6 +159,13 @@ export interface DesktopApi {
 export type DesktopHealthResult =
   | { ok: true; ms: number; statusCode: number }
   | { ok: false; ms: null; statusCode?: number; error: string };
+
+export interface DesktopRuntimeInfo {
+  readonly appVersion: string;
+  readonly platform: NodeJS.Platform;
+  readonly arch: NodeJS.Architecture;
+  readonly osRelease: string;
+}
 
 declare global {
   interface Window {

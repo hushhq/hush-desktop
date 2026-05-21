@@ -105,6 +105,12 @@ export function registerIpcHandlers(): void {
   const windowFloor = buildWindowFloorHandler();
 
   ipcMain.handle(IPC_CHANNEL.GET_APP_VERSION, () => app.getVersion());
+  ipcMain.handle(IPC_CHANNEL.GET_RUNTIME_INFO, () => ({
+    appVersion: app.getVersion(),
+    platform: process.platform,
+    arch: process.arch,
+    osRelease: osRelease(),
+  }));
 
   ipcMain.handle(IPC_CHANNEL.VAULT_SET_SESSION_KEY, (_e, userId, rawKeyHex) =>
     vault.setSessionKey(userId, rawKeyHex),

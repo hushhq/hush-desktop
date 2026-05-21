@@ -89,7 +89,6 @@ module.exports = {
   ],
   afterPack: 'scripts/after-pack.cjs',
   afterSign: 'scripts/notarize-mac-app.cjs',
-  afterAllArtifactBuild: 'scripts/after-all-artifact-build.cjs',
   linux: {
     // Debian's `dpkg-deb` requires a maintainer "Real Name <email>" string.
     // Sourced from the documented contact in hush-web/CONTRIBUTING.md so the

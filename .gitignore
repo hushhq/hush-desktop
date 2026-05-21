@@ -5,6 +5,7 @@ Thumbs.db
 node_modules/
 out/
 dist/
+local-dist/
 renderer/
 coverage/
 *.log
