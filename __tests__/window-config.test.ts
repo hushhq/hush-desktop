@@ -27,6 +27,7 @@ describe('buildWindowOptions', () => {
   it('uses titleBarOverlay so Win11 Snap Layouts work on Windows', () => {
     const winOpts = buildWindowOptions('/fake/preload.js', 'win32');
     expect(winOpts.titleBarStyle).toBe('hidden');
+    expect(winOpts.roundedCorners).toBe(true);
     expect(winOpts.titleBarOverlay).toEqual({
       color: '#00000000',
       symbolColor: '#EEEEF0',
