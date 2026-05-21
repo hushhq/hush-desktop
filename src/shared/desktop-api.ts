@@ -103,6 +103,14 @@ export interface DesktopApi {
    */
   getGlassCapabilities(): Promise<GlassCapabilities>;
   /**
+   * Tells main that the renderer-side desktop shell has mounted and the
+   * cold-launch window can be revealed. Fire-and-forget; the channel is
+   * idempotent in main, so re-mount (HMR, route reset) does not cause
+   * a second reveal. A reveal fallback in main caps the wait so a
+   * broken renderer cannot leave the window invisible.
+   */
+  notifyRendererReady(): void;
+  /**
    * Measures round-trip latency to `${instanceUrl}/api/health` in the main
    * process so the request bypasses renderer COEP / CORS constraints.
    *

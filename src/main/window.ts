@@ -1,7 +1,9 @@
-import { BrowserWindow, shell } from 'electron';
+import { BrowserWindow, ipcMain, shell } from 'electron';
 import { join } from 'path';
 import { buildWindowOptions } from './window-config';
 import type { LifecycleState } from './lifecycle';
+import { WindowRevealGate } from './window-reveal-gate';
+import { IPC_CHANNEL } from '../shared/ipc-channels';
 
 const IS_DEV = process.env.NODE_ENV === 'development';
 const WEB_DEV_URL = process.env.HUSH_WEB_URL ?? 'http://localhost:5173';
@@ -17,7 +19,23 @@ export function createMainWindow(lifecycle?: LifecycleState, initialPath = '/'):
   // scroll positions all survive a re-open without a reload.
   lifecycle?.attachCloseInterceptor(win);
 
-  win.once('ready-to-show', () => win.show());
+  // Reveal gate: keep the window hidden until both Electron has finished
+  // its first paint (`ready-to-show`) and the renderer has reported that
+  // the desktop shell is mounted. A fallback timer reveals the window
+  // anyway if the renderer never signals, so a broken renderer cannot
+  // leave the app invisible. See `window-reveal-gate.ts` for the gating
+  // contract.
+  const gate = new WindowRevealGate(win);
+  const handleRendererReady = (event: Electron.IpcMainEvent) => {
+    if (event.sender !== win.webContents) return;
+    gate.notifyRendererReady();
+  };
+  ipcMain.on(IPC_CHANNEL.WINDOW_RENDERER_READY, handleRendererReady);
+  win.once('ready-to-show', () => gate.notifyElectronReady());
+  win.on('closed', () => {
+    gate.notifyWindowDestroyed();
+    ipcMain.removeListener(IPC_CHANNEL.WINDOW_RENDERER_READY, handleRendererReady);
+  });
 
   // Route external link clicks to the OS browser rather than opening a new app window.
   win.webContents.setWindowOpenHandler(({ url }) => {

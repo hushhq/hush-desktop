@@ -25,6 +25,9 @@ const api: DesktopApi = {
     ipcRenderer.invoke(
       IPC_CHANNEL.WINDOW_GET_GLASS_CAPABILITIES,
     ) as Promise<GlassCapabilities>,
+  notifyRendererReady: () => {
+    ipcRenderer.send(IPC_CHANNEL.WINDOW_RENDERER_READY);
+  },
   measureInstanceHealth: (instanceUrl) =>
     ipcRenderer.invoke(IPC_CHANNEL.NETWORK_MEASURE_INSTANCE_HEALTH, instanceUrl),
   getDesktopUpdateState: () =>
