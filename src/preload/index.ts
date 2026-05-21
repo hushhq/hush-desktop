@@ -30,6 +30,13 @@ const api: DesktopApi = {
   notifyRendererReady: () => {
     ipcRenderer.send(IPC_CHANNEL.WINDOW_RENDERER_READY);
   },
+  onWindowRevealed: (listener) => {
+    const wrapped = () => listener();
+    ipcRenderer.on(IPC_CHANNEL.WINDOW_REVEALED_EVENT, wrapped);
+    return () => {
+      ipcRenderer.removeListener(IPC_CHANNEL.WINDOW_REVEALED_EVENT, wrapped);
+    };
+  },
   measureInstanceHealth: (instanceUrl) =>
     ipcRenderer.invoke(IPC_CHANNEL.NETWORK_MEASURE_INSTANCE_HEALTH, instanceUrl),
   getDesktopUpdateState: () =>

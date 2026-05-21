@@ -32,6 +32,12 @@ export interface RevealableWindow {
    */
   show(): void
   /**
+   * Optional native opacity bridge. Electron exposes this on macOS and
+   * Windows. When available, the gate can warm up native window material
+   * while the window is technically shown but still invisible to the user.
+   */
+  setOpacity?(opacity: number): void
+  /**
    * Whether the underlying BrowserWindow is gone. Real
    * `BrowserWindow#isDestroyed` is consulted so a late renderer-ready
    * IPC arriving after a close cannot re-show or crash main.
@@ -53,9 +59,22 @@ export interface WindowRevealGateOptions {
    */
   setTimeoutImpl?: (handler: () => void, ms: number) => ReturnType<typeof setTimeout>
   clearTimeoutImpl?: (id: ReturnType<typeof setTimeout>) => void
+  /**
+   * Delay between showing an opacity-0 window and making it visible.
+   * This gives macOS NSVisualEffectView / Windows background material a
+   * compositor turn before the user can see the window.
+   */
+  materialWarmupMs?: number
+  /**
+   * Fired once the window has completed its cold reveal. The renderer
+   * uses this to transition chrome surfaces from their solid startup
+   * colour to the native-material glass colour.
+   */
+  onRevealed?: () => void
 }
 
 export const DEFAULT_REVEAL_FALLBACK_MS = 5000
+export const DEFAULT_MATERIAL_WARMUP_MS = 120
 
 /**
  * Pure reveal coordinator. The Electron-specific wiring (subscribing to
@@ -65,6 +84,8 @@ export const DEFAULT_REVEAL_FALLBACK_MS = 5000
 export class WindowRevealGate {
   private readonly window: RevealableWindow
   private readonly fallbackMs: number
+  private readonly materialWarmupMs: number
+  private readonly onRevealed: () => void
   private readonly setTimeoutImpl: NonNullable<WindowRevealGateOptions['setTimeoutImpl']>
   private readonly clearTimeoutImpl: NonNullable<WindowRevealGateOptions['clearTimeoutImpl']>
   private electronReady = false
@@ -76,6 +97,8 @@ export class WindowRevealGate {
   constructor(window: RevealableWindow, options: WindowRevealGateOptions = {}) {
     this.window = window
     this.fallbackMs = options.fallbackTimeoutMs ?? DEFAULT_REVEAL_FALLBACK_MS
+    this.materialWarmupMs = options.materialWarmupMs ?? DEFAULT_MATERIAL_WARMUP_MS
+    this.onRevealed = options.onRevealed ?? (() => {})
     this.setTimeoutImpl = options.setTimeoutImpl ?? setTimeout
     this.clearTimeoutImpl = options.clearTimeoutImpl ?? clearTimeout
   }
@@ -136,6 +159,16 @@ export class WindowRevealGate {
     this.cancelFallback()
     if (this.destroyed || this.window.isDestroyed()) return
     this.revealed = true
+    this.window.setOpacity?.(0)
     this.window.show()
+    if (typeof this.window.setOpacity !== 'function') {
+      this.onRevealed()
+      return
+    }
+    this.setTimeoutImpl(() => {
+      if (this.destroyed || this.window.isDestroyed()) return
+      this.window.setOpacity?.(1)
+      this.onRevealed()
+    }, this.materialWarmupMs)
   }
 }
