@@ -1,5 +1,6 @@
 export const IPC_CHANNEL = {
   GET_APP_VERSION: 'app:get-version',
+  GET_RUNTIME_INFO: 'app:get-runtime-info',
   VAULT_SET_SESSION_KEY: 'vault:set-session-key',
   VAULT_GET_SESSION_KEY: 'vault:get-session-key',
   VAULT_CLEAR_SESSION_KEY: 'vault:clear-session-key',

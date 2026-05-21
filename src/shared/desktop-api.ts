@@ -56,7 +56,9 @@ export interface GlassCapabilities {
 export interface DesktopApi {
   readonly isDesktop: true;
   readonly platform: NodeJS.Platform;
+  readonly arch: NodeJS.Architecture;
   getAppVersion(): Promise<string>;
+  getRuntimeInfo(): Promise<DesktopRuntimeInfo>;
   /**
    * Stores the AES-256 wrapping key hex in the main process after PIN unlock.
    * The key lives only in main-process memory — never in renderer storage.
@@ -149,6 +151,13 @@ export interface DesktopApi {
 export type DesktopHealthResult =
   | { ok: true; ms: number; statusCode: number }
   | { ok: false; ms: null; statusCode?: number; error: string };
+
+export interface DesktopRuntimeInfo {
+  readonly appVersion: string;
+  readonly platform: NodeJS.Platform;
+  readonly arch: NodeJS.Architecture;
+  readonly osRelease: string;
+}
 
 declare global {
   interface Window {

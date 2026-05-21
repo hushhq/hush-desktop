@@ -10,7 +10,9 @@ import { IPC_CHANNEL } from '../shared/ipc-channels';
 const api: DesktopApi = {
   isDesktop: true,
   platform: process.platform,
+  arch: process.arch,
   getAppVersion: () => ipcRenderer.invoke(IPC_CHANNEL.GET_APP_VERSION),
+  getRuntimeInfo: () => ipcRenderer.invoke(IPC_CHANNEL.GET_RUNTIME_INFO),
   setVaultSessionKey: (userId, rawKeyHex) =>
     ipcRenderer.invoke(IPC_CHANNEL.VAULT_SET_SESSION_KEY, userId, rawKeyHex),
   getVaultSessionKey: (userId) =>
