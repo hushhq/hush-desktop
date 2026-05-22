@@ -77,7 +77,10 @@ function makeTimerHarness() {
   return { timers, setTimeoutFake, clearTimeoutFake, fireLatest };
 }
 
-function buildController(opts?: { timeoutMs?: number }) {
+function buildController(opts?: {
+  timeoutMs?: number;
+  onBeforeQuitAndInstall?: () => void;
+}) {
   const updater = new FakeUpdater();
   const timer = makeTimerHarness();
   const states: DesktopUpdateState[] = [];
@@ -88,6 +91,7 @@ function buildController(opts?: { timeoutMs?: number }) {
     setTimeout: timer.setTimeoutFake,
     clearTimeout: timer.clearTimeoutFake,
     onStateChange: (s) => states.push(s),
+    onBeforeQuitAndInstall: opts?.onBeforeQuitAndInstall,
   });
   return { controller, updater, timer, states };
 }
@@ -217,6 +221,29 @@ describe('DesktopUpdaterController', () => {
     h.updater.emit('update-downloaded', {});
     expect(h.controller.getState().phase).toBe('downloaded');
     expect(h.updater.quitAndInstallCalls).toBe(1);
+  });
+
+  it('UpdateDownloaded_CallsBeforeQuitHookBeforeQuitAndInstall', async () => {
+    const order: string[] = [];
+    const updater = new FakeUpdater();
+    const originalQuitAndInstall = updater.quitAndInstall.bind(updater);
+    updater.quitAndInstall = () => {
+      order.push('quitAndInstall');
+      originalQuitAndInstall();
+    };
+    const timer = makeTimerHarness();
+    const controller = new DesktopUpdaterController({
+      updater: updater as unknown as UpdaterLike,
+      currentVersion: '0.1.0-mvp',
+      setTimeout: timer.setTimeoutFake,
+      clearTimeout: timer.clearTimeoutFake,
+      onBeforeQuitAndInstall: () => order.push('beforeQuit'),
+    });
+    controller.start();
+    updater.emit('update-available', { version: '0.1.1-mvp' } as UpdateInfoLike);
+    await flushMicrotasks();
+    updater.emit('update-downloaded', {});
+    expect(order).toEqual(['beforeQuit', 'quitAndInstall']);
   });
 
   it('Error_BeforeAvailability_FailsOpenSkipped', () => {

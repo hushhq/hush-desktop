@@ -64,6 +64,7 @@ export interface DesktopUpdaterControllerOptions {
   readonly setTimeout?: (fn: () => void, ms: number) => unknown;
   readonly clearTimeout?: (handle: unknown) => void;
   readonly onStateChange?: DesktopUpdateListener;
+  readonly onBeforeQuitAndInstall?: () => void;
   readonly logger?: (event: string, detail?: Record<string, unknown>) => void;
 }
 
@@ -82,6 +83,7 @@ export class DesktopUpdaterController {
   private readonly timeoutMs: number;
   private readonly setTimeoutImpl: (fn: () => void, ms: number) => unknown;
   private readonly clearTimeoutImpl: (handle: unknown) => void;
+  private readonly onBeforeQuitAndInstall: () => void;
   private readonly logger: (event: string, detail?: Record<string, unknown>) => void;
 
   private availabilitySettled = false;
@@ -96,6 +98,7 @@ export class DesktopUpdaterController {
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.setTimeoutImpl = opts.setTimeout ?? ((fn, ms) => globalThis.setTimeout(fn, ms));
     this.clearTimeoutImpl = opts.clearTimeout ?? ((h) => globalThis.clearTimeout(h as ReturnType<typeof globalThis.setTimeout>));
+    this.onBeforeQuitAndInstall = opts.onBeforeQuitAndInstall ?? (() => {});
     this.logger = opts.logger ?? (() => {});
     this.state = buildIdleDesktopUpdateState(opts.currentVersion);
     if (opts.onStateChange) this.listeners.add(opts.onStateChange);
@@ -248,6 +251,7 @@ export class DesktopUpdaterController {
     if (this.state.phase === 'downloaded' || this.state.phase === 'error') return;
     this.transition({ phase: 'downloaded' });
     try {
+      this.onBeforeQuitAndInstall();
       this.updater.quitAndInstall();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

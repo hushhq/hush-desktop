@@ -9,6 +9,10 @@ import { setActiveDesktopUpdater } from './desktopUpdaterRegistry';
 /** Resolver that returns the current main window, or `null` if none exists yet. */
 export type MainWindowProvider = () => BrowserWindow | null;
 
+export interface DesktopUpdaterFactoryOptions {
+  readonly onBeforeQuitAndInstall?: () => void;
+}
+
 /**
  * Starts the desktop auto-update gate ahead of (and independent from) the main
  * window lifecycle.
@@ -32,12 +36,14 @@ export type MainWindowProvider = () => BrowserWindow | null;
  */
 export function startDesktopUpdater(
   getWindow: MainWindowProvider,
+  options: DesktopUpdaterFactoryOptions = {},
 ): DesktopUpdaterController | null {
   if (!app.isPackaged) return null;
 
   const controller = new DesktopUpdaterController({
     updater: autoUpdater as unknown as UpdaterLike,
     currentVersion: app.getVersion(),
+    onBeforeQuitAndInstall: options.onBeforeQuitAndInstall,
     onStateChange: (state) => emitToRenderer(getWindow, state),
     logger: (event, detail) => {
       recordEvent('desktop-updater', event, detail);

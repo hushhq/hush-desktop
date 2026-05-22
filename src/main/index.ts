@@ -227,7 +227,9 @@ app.whenReady().then(() => {
   // `checking` snapshot — otherwise the renderer can briefly hydrate as
   // `idle` and unblock the PIN/auth surface underneath the update boundary.
   // No-ops in dev because `startDesktopUpdater` checks `app.isPackaged`.
-  startDesktopUpdater(getMainWindow);
+  startDesktopUpdater(getMainWindow, {
+    onBeforeQuitAndInstall: () => lifecycle.markQuitting(),
+  });
   installAppMenu({
     onCheckForUpdates: checkForUpdatesFromShell,
   }, {
