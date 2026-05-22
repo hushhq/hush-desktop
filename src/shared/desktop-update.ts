@@ -23,8 +23,12 @@ export type DesktopUpdatePhase =
   | 'checking'
   /** Update download is in flight with measurable progress. Gate visible. */
   | 'downloading'
+  /** Manual/background update is downloading without blocking the app shell. */
+  | 'preparing'
   /** Update fully downloaded; app is about to call quitAndInstall. Gate visible. */
   | 'downloaded'
+  /** Update fully downloaded by a manual/background check; user must explicitly restart. */
+  | 'ready'
   /** Fail-open: 3s timeout, no update available, or unrecoverable error before download. Gate hidden. */
   | 'skipped'
   /** Fail-open after a download error. Gate hidden. */

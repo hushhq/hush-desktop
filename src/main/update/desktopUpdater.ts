@@ -56,6 +56,7 @@ export interface ProgressInfoLike {
 
 export type DesktopUpdateListener = (state: DesktopUpdateState) => void;
 type AvailabilityResolver = (state: DesktopUpdateState) => void;
+type DownloadInstallPolicy = 'auto' | 'manual';
 
 export interface DesktopUpdaterControllerOptions {
   readonly updater: UpdaterLike;
@@ -90,6 +91,7 @@ export class DesktopUpdaterController {
   private downloadStarted = false;
   private availabilityCheckInFlight = false;
   private startCalled = false;
+  private installPolicy: DownloadInstallPolicy = 'auto';
   private timeoutHandle: unknown = null;
   private readonly availabilityResolvers: AvailabilityResolver[] = [];
 
@@ -120,7 +122,10 @@ export class DesktopUpdaterController {
     if (this.startCalled) return;
     this.startCalled = true;
 
-    this.beginAvailabilityCheck({ showGateWhileChecking: true });
+    this.beginAvailabilityCheck({
+      showGateWhileChecking: true,
+      installPolicy: 'auto',
+    });
   }
 
   /**
@@ -132,17 +137,59 @@ export class DesktopUpdaterController {
     if (this.availabilityCheckInFlight) return this.waitForAvailability();
     if (
       this.state.phase === 'downloading'
+      || this.state.phase === 'preparing'
       || this.state.phase === 'downloaded'
+      || this.state.phase === 'ready'
       || (this.state.phase === 'checking' && this.downloadStarted)
     ) {
       return Promise.resolve(this.getState());
     }
     const pending = this.waitForAvailability();
-    this.beginAvailabilityCheck({ showGateWhileChecking: false });
+    this.beginAvailabilityCheck({
+      showGateWhileChecking: false,
+      installPolicy: 'manual',
+    });
     return pending;
   }
 
-  private beginAvailabilityCheck(opts: { showGateWhileChecking: boolean }): void {
+  /**
+   * Runs a non-interruptive background check. It shares manual-check semantics:
+   * download if available, then wait for an explicit install request instead
+   * of restarting the app from a timer callback.
+   */
+  requestBackgroundCheck(): void {
+    if (
+      this.availabilityCheckInFlight
+      || this.state.phase === 'downloading'
+      || this.state.phase === 'preparing'
+      || this.state.phase === 'downloaded'
+      || this.state.phase === 'ready'
+      || (this.state.phase === 'checking' && this.downloadStarted)
+    ) {
+      return;
+    }
+    this.beginAvailabilityCheck({
+      showGateWhileChecking: false,
+      installPolicy: 'manual',
+    });
+  }
+
+  /**
+   * Installs a downloaded manual/background update. No-op unless the controller
+   * is in the explicit user-action `ready` state.
+   */
+  installDownloadedUpdate(): DesktopUpdateState {
+    if (this.state.phase !== 'ready') return this.getState();
+    this.installPolicy = 'auto';
+    this.transition({ phase: 'downloaded' });
+    this.quitAndInstall();
+    return this.getState();
+  }
+
+  private beginAvailabilityCheck(opts: {
+    showGateWhileChecking: boolean;
+    installPolicy: DownloadInstallPolicy;
+  }): void {
     this.updater.autoDownload = false;
     this.updater.autoInstallOnAppQuit = false;
 
@@ -150,6 +197,7 @@ export class DesktopUpdaterController {
     this.availabilitySettled = false;
     this.availabilityCheckInFlight = true;
     this.downloadStarted = false;
+    this.installPolicy = opts.installPolicy;
 
     if (opts.showGateWhileChecking) {
       this.transition({
@@ -216,13 +264,19 @@ export class DesktopUpdaterController {
     this.availabilityCheckInFlight = false;
     this.clearPendingTimeout();
     const targetVersion = typeof info?.version === 'string' ? info.version : null;
-    this.transition({
-      phase: 'checking',
+    const nextAvailabilityState: DesktopUpdateState = {
+      ...this.state,
+      phase: this.installPolicy === 'auto' ? 'checking' : 'preparing',
       targetVersion,
       progress: null,
       error: null,
-    });
-    this.resolveAvailabilityWaiters();
+    };
+    if (this.installPolicy === 'auto') {
+      this.transition(nextAvailabilityState);
+    } else {
+      this.state = nextAvailabilityState;
+    }
+    this.resolveAvailabilityWaiters(nextAvailabilityState);
     this.startDownload();
   }
 
@@ -236,20 +290,43 @@ export class DesktopUpdaterController {
 
   private onDownloadProgress(progress: ProgressInfoLike | undefined): void {
     if (!this.downloadStarted) return;
-    if (this.state.phase === 'downloaded' || this.state.phase === 'error') return;
+    if (
+      this.state.phase === 'downloaded'
+      || this.state.phase === 'ready'
+      || this.state.phase === 'error'
+    ) {
+      return;
+    }
     const next: DesktopUpdateProgress = {
       percent: clampPercent(progress?.percent),
       transferred: nonNegative(progress?.transferred),
       total: nonNegative(progress?.total),
       bytesPerSecond: nonNegative(progress?.bytesPerSecond),
     };
-    this.transition({ phase: 'downloading', progress: next });
+    this.transition({
+      phase: this.installPolicy === 'auto' ? 'downloading' : 'preparing',
+      progress: next,
+    });
   }
 
   private onUpdateDownloaded(): void {
     if (!this.downloadStarted) return;
-    if (this.state.phase === 'downloaded' || this.state.phase === 'error') return;
+    if (
+      this.state.phase === 'downloaded'
+      || this.state.phase === 'ready'
+      || this.state.phase === 'error'
+    ) {
+      return;
+    }
+    if (this.installPolicy === 'manual') {
+      this.transition({ phase: 'ready' });
+      return;
+    }
     this.transition({ phase: 'downloaded' });
+    this.quitAndInstall();
+  }
+
+  private quitAndInstall(): void {
     try {
       this.onBeforeQuitAndInstall();
       this.updater.quitAndInstall();
@@ -339,9 +416,9 @@ export class DesktopUpdaterController {
     });
   }
 
-  private resolveAvailabilityWaiters(): void {
+  private resolveAvailabilityWaiters(snapshotOverride?: DesktopUpdateState): void {
     if (this.availabilityResolvers.length === 0) return;
-    const snapshot = this.getState();
+    const snapshot = snapshotOverride ?? this.getState();
     const resolvers = this.availabilityResolvers.splice(0);
     for (const resolve of resolvers) resolve(snapshot);
   }

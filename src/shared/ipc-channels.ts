@@ -11,6 +11,7 @@ export const IPC_CHANNEL = {
   NETWORK_MEASURE_INSTANCE_HEALTH: 'network:measure-instance-health',
   UPDATE_GET_STATE: 'update:get-state',
   UPDATE_CHECK_NOW: 'update:check-now',
+  UPDATE_INSTALL_NOW: 'update:install-now',
   UPDATE_STATE_EVENT: 'update:state',
 } as const;
 

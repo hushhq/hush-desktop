@@ -12,6 +12,7 @@ import {
   type FetchLike,
 } from '../network/measureInstanceHealth';
 import {
+  installDesktopUpdate,
   getDesktopUpdateStateSnapshot,
   requestDesktopUpdateCheck,
 } from '../update/desktopUpdaterRegistry';
@@ -110,6 +111,7 @@ export function registerIpcHandlers(): void {
     platform: process.platform,
     arch: process.arch,
     osRelease: osRelease(),
+    electronVersion: process.versions.electron,
   }));
 
   ipcMain.handle(IPC_CHANNEL.VAULT_SET_SESSION_KEY, (_e, userId, rawKeyHex) =>
@@ -140,6 +142,9 @@ export function registerIpcHandlers(): void {
   );
   ipcMain.handle(IPC_CHANNEL.UPDATE_CHECK_NOW, () =>
     requestDesktopUpdateCheck(app.getVersion()),
+  );
+  ipcMain.handle(IPC_CHANNEL.UPDATE_INSTALL_NOW, () =>
+    installDesktopUpdate(app.getVersion()),
   );
 }
 

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   getActiveDesktopUpdater,
   getDesktopUpdateStateSnapshot,
+  installDesktopUpdate,
   requestDesktopUpdateCheck,
   setActiveDesktopUpdater,
 } from '../src/main/update/desktopUpdaterRegistry';
@@ -67,6 +68,17 @@ describe('getDesktopUpdateStateSnapshot', () => {
     await expect(requestDesktopUpdateCheck('0.0.2-test')).resolves.toEqual({
       phase: 'idle',
       currentVersion: '0.0.2-test',
+      targetVersion: null,
+      progress: null,
+      error: null,
+    });
+  });
+
+  it('InstallDesktopUpdate_NoController_ReturnsIdleSnapshot', () => {
+    setActiveDesktopUpdater(null);
+    expect(installDesktopUpdate('0.0.3-test')).toEqual({
+      phase: 'idle',
+      currentVersion: '0.0.3-test',
       targetVersion: null,
       progress: null,
       error: null,

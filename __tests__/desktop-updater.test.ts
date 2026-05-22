@@ -360,7 +360,7 @@ describe('DesktopUpdaterController', () => {
     expect(result.error).toBe('no-update');
   });
 
-  it('ManualCheck_UpdateAvailable_TransitionsToGateAndStartsDownload', async () => {
+  it('ManualCheck_UpdateAvailable_DownloadsWithoutRestarting', async () => {
     h.controller.start();
     h.updater.emit('update-not-available', {});
 
@@ -369,10 +369,55 @@ describe('DesktopUpdaterController', () => {
     await flushMicrotasks();
 
     const result = await pending;
-    expect(result.phase).toBe('checking');
+    expect(result.phase).toBe('preparing');
     expect(result.targetVersion).toBe('0.1.2-mvp');
-    expect(h.controller.getState().phase).toBe('checking');
+    expect(h.controller.getState().phase).toBe('preparing');
     expect(h.updater.downloadUpdateCalls).toBe(1);
+
+    h.updater.emit('update-downloaded', {});
+    expect(h.controller.getState().phase).toBe('ready');
+    expect(h.updater.quitAndInstallCalls).toBe(0);
+  });
+
+  it('InstallDownloadedUpdate_Ready_CallsQuitAndInstall', async () => {
+    h.controller.start();
+    h.updater.emit('update-not-available', {});
+
+    void h.controller.requestManualCheck();
+    h.updater.emit('update-available', { version: '0.1.2-mvp' } as UpdateInfoLike);
+    await flushMicrotasks();
+    h.updater.emit('update-downloaded', {});
+
+    const state = h.controller.installDownloadedUpdate();
+    expect(state.phase).toBe('downloaded');
+    expect(h.updater.quitAndInstallCalls).toBe(1);
+  });
+
+  it('InstallDownloadedUpdate_NotReady_IsNoOp', () => {
+    h.controller.start();
+    const state = h.controller.installDownloadedUpdate();
+    expect(state.phase).toBe('checking');
+    expect(h.updater.quitAndInstallCalls).toBe(0);
+  });
+
+  it('BackgroundCheck_UpdateAvailable_DownloadsWithoutOpeningGateOrRestarting', async () => {
+    h.controller.start();
+    h.updater.emit('update-not-available', {});
+    h.states.length = 0;
+
+    h.controller.requestBackgroundCheck();
+    expect(h.updater.checkForUpdatesCalls).toBe(2);
+    expect(h.states).toEqual([]);
+
+    h.updater.emit('update-available', { version: '0.1.2-mvp' } as UpdateInfoLike);
+    await flushMicrotasks();
+    h.updater.emit('download-progress', { percent: 50, transferred: 1, total: 2, bytesPerSecond: 1 });
+    h.updater.emit('update-downloaded', {});
+
+    expect(h.controller.getState().phase).toBe('ready');
+    expect(h.states.map((s) => s.phase)).toEqual(['preparing', 'ready']);
+    expect(h.updater.downloadUpdateCalls).toBe(1);
+    expect(h.updater.quitAndInstallCalls).toBe(0);
   });
 
   it('ManualCheck_Timeout_ResolvesSkippedWithoutOpeningGate', async () => {

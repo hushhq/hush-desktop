@@ -13,6 +13,8 @@ export interface DesktopUpdaterFactoryOptions {
   readonly onBeforeQuitAndInstall?: () => void;
 }
 
+export const BACKGROUND_UPDATE_CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000;
+
 /**
  * Starts the desktop auto-update gate ahead of (and independent from) the main
  * window lifecycle.
@@ -52,7 +54,17 @@ export function startDesktopUpdater(
 
   setActiveDesktopUpdater(controller);
   controller.start();
+  startBackgroundUpdateChecks(controller);
   return controller;
+}
+
+function startBackgroundUpdateChecks(controller: DesktopUpdaterController): void {
+  const handle = globalThis.setInterval(() => {
+    controller.requestBackgroundCheck();
+  }, BACKGROUND_UPDATE_CHECK_INTERVAL_MS);
+  if (typeof handle === 'object' && handle && typeof handle.unref === 'function') {
+    handle.unref();
+  }
 }
 
 function emitToRenderer(getWindow: MainWindowProvider, state: DesktopUpdateState): void {

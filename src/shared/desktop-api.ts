@@ -141,6 +141,11 @@ export interface DesktopApi {
    */
   checkForDesktopUpdates(): Promise<DesktopUpdateState>;
   /**
+   * Restarts and installs a downloaded update. No-op unless the updater state
+   * is `ready`; returns the resulting state snapshot.
+   */
+  installDesktopUpdate(): Promise<DesktopUpdateState>;
+  /**
    * Subscribes to push updates of the desktop auto-update state. The listener
    * fires for every state transition in main. Returns an unsubscribe function
    * — call it on component unmount to remove the underlying IPC listener.
@@ -165,6 +170,7 @@ export interface DesktopRuntimeInfo {
   readonly platform: NodeJS.Platform;
   readonly arch: NodeJS.Architecture;
   readonly osRelease: string;
+  readonly electronVersion: string;
 }
 
 declare global {
