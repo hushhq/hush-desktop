@@ -4,6 +4,7 @@ import { buildWindowOptions } from './window-config';
 import type { LifecycleState } from './lifecycle';
 import { WindowRevealGate } from './window-reveal-gate';
 import { IPC_CHANNEL } from '../shared/ipc-channels';
+import { attachNativeMaterialRecovery } from './window-material-recovery';
 
 const IS_DEV = process.env.NODE_ENV === 'development';
 const WEB_DEV_URL = process.env.HUSH_WEB_URL ?? 'http://localhost:5173';
@@ -12,6 +13,7 @@ const PROD_URL = 'app://localhost/';
 export function createMainWindow(lifecycle?: LifecycleState, initialPath = '/'): BrowserWindow {
   const preloadPath = join(__dirname, '../preload/index.js');
   const win = new BrowserWindow(buildWindowOptions(preloadPath));
+  attachNativeMaterialRecovery(win);
 
   // Close-to-tray / menu-bar: route the OS close button through the
   // lifecycle interceptor so the window hides instead of being destroyed.
