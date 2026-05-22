@@ -36,6 +36,8 @@ const api: DesktopApi = {
     ipcRenderer.invoke(IPC_CHANNEL.UPDATE_GET_STATE) as Promise<DesktopUpdateState>,
   checkForDesktopUpdates: () =>
     ipcRenderer.invoke(IPC_CHANNEL.UPDATE_CHECK_NOW) as Promise<DesktopUpdateState>,
+  installDesktopUpdate: () =>
+    ipcRenderer.invoke(IPC_CHANNEL.UPDATE_INSTALL_NOW) as Promise<DesktopUpdateState>,
   onDesktopUpdateState: (listener) => {
     const wrapped = (_event: IpcRendererEvent, state: DesktopUpdateState) => listener(state);
     ipcRenderer.on(IPC_CHANNEL.UPDATE_STATE_EVENT, wrapped);

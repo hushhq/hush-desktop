@@ -46,3 +46,12 @@ export function requestDesktopUpdateCheck(currentVersion: string): Promise<Deskt
   if (!controller) return Promise.resolve(buildIdleDesktopUpdateState(currentVersion));
   return controller.requestManualCheck();
 }
+
+/**
+ * User-confirmed install entry point for a downloaded background/manual update.
+ */
+export function installDesktopUpdate(currentVersion: string): DesktopUpdateState {
+  const controller = getActiveDesktopUpdater();
+  if (!controller) return buildIdleDesktopUpdateState(currentVersion);
+  return controller.installDownloadedUpdate();
+}
