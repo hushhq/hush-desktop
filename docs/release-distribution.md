@@ -6,7 +6,7 @@ The same release assets feed:
 
 - direct downloads from the website;
 - `electron-updater` desktop update checks;
-- package-manager manifests such as Homebrew Cask, WinGet, AUR, and Flathub.
+- package-manager manifests such as Homebrew Cask, WinGet, and AUR.
 
 Do not publish binaries to a separate bucket unless that bucket also becomes the updater feed. Split feeds create downgrade and compatibility risks.
 
@@ -119,8 +119,9 @@ All package-manager recipes should point at the GitHub Release assets.
 | Homebrew Cask | Tap cask with URL and SHA256 from the macOS GitHub Release artifact |
 | WinGet | Manifest PR referencing the signed Windows installer from GitHub Releases |
 | AUR | `hush-bin` PKGBUILD sourcing the Linux `.tar.gz` or `.AppImage` and checksum |
-| Flathub | Manifest maintained in Flathub infrastructure, sourcing GitHub Release artifacts |
 
-Do not make Snap the primary Linux path. It can be revisited later if there is demand, but the default Linux distribution plan is AppImage, deb, tar.gz, AUR, and Flathub.
+Do not make Snap or Flatpak/Flathub part of the first Linux package-manager
+pass. They can be revisited later if there is demand, but the default Linux
+distribution plan is AppImage, deb, tar.gz, and AUR.
 
 Do not submit package-manager manifests until the first real GitHub Release exists. The manifests need stable asset names and hashes from that release.

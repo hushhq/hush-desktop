@@ -1,0 +1,18 @@
+# HUSHHQ-35. Winget installer manifest template.
+# Submit to microsoft/winget-pkgs as
+#   manifests/h/Hush/Desktop/0.1.37-mvp/Hush.Desktop.installer.yaml
+# after filling InstallerSha256.
+PackageIdentifier: Hush.Desktop
+PackageVersion: 0.1.37-mvp
+InstallerType: nullsoft
+Scope: user
+InstallModes:
+  - interactive
+  - silent
+UpgradeBehavior: install
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/hushhq/hush-desktop/releases/download/v0.1.37-mvp/Hush.Setup.0.1.37-mvp.exe
+    InstallerSha256: TODO_SHA256_OF_HUSH_SETUP_EXE
+ManifestType: installer
+ManifestVersion: 1.6.0
