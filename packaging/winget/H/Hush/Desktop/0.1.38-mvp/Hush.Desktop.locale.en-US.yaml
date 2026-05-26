@@ -1,6 +1,6 @@
 # HUSHHQ-35. Winget locale manifest template.
 PackageIdentifier: Hush.Desktop
-PackageVersion: 0.1.37-mvp
+PackageVersion: 0.1.38-mvp
 PackageLocale: en-US
 Publisher: Hush
 PublisherUrl: https://gethush.live
