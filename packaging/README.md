@@ -16,8 +16,8 @@ a successful install for the published manifest.
 | OS | Direct artifact (already published) | Package manager | Manifest |
 |-|-|-|-|
 | macOS | `Hush-<version>-arm64.dmg`, `Hush-<version>.dmg` | Homebrew Cask | `homebrew-cask/hush.rb` |
-| Windows | `Hush.Setup.<version>.exe` (NSIS) | Winget | `winget/H/Hush/Desktop/<version>/*` |
-| Linux | `Hush-<version>.AppImage`, `hush-desktop_<version>_amd64.deb` | AUR `hush-bin` | `aur/PKGBUILD` |
+| Windows | `Hush.Setup.<version>.exe` (NSIS) | Winget | `winget/H/HushHQ/Hush/<version>/*` |
+| Linux | `Hush-<version>.AppImage`, `hush-desktop_<version>_amd64.deb` | AUR `hush-desktop-bin` | `aur/PKGBUILD` |
 
 ## Out of scope (first pass)
 

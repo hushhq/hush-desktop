@@ -1,7 +1,7 @@
 # HUSHHQ-35. Winget installer manifest template.
 # Submit to microsoft/winget-pkgs as
-#   manifests/h/Hush/Desktop/0.1.38-mvp/Hush.Desktop.installer.yaml
-PackageIdentifier: Hush.Desktop
+#   manifests/h/HushHQ/Hush/0.1.38-mvp/HushHQ.Hush.installer.yaml
+PackageIdentifier: HushHQ.Hush
 PackageVersion: 0.1.38-mvp
 InstallerType: nullsoft
 Scope: user

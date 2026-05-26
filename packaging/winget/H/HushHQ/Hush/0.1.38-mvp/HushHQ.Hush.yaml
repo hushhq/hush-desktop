@@ -1,5 +1,5 @@
 # HUSHHQ-35. Winget version manifest template.
-PackageIdentifier: Hush.Desktop
+PackageIdentifier: HushHQ.Hush
 PackageVersion: 0.1.38-mvp
 DefaultLocale: en-US
 ManifestType: version

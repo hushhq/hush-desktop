@@ -1,6 +1,6 @@
-# HUSHHQ-35. AUR `hush-bin` PKGBUILD template.
+# HUSHHQ-35. AUR `hush-desktop-bin` PKGBUILD template.
 # Maintainer: Hush <security@gethush.live>
-pkgname=hush-bin
+pkgname=hush-desktop-bin
 pkgver=0.1.38
 pkgrel=1
 pkgdesc="End-to-end encrypted messenger (binary release)"
