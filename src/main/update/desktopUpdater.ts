@@ -8,7 +8,7 @@
  * Startup contract (see hush-desktop/docs/release-distribution.md):
  *   - Packaged builds check GitHub for an update during startup.
  *   - The check has a hard 3 second timeout. Network/DNS/outage MUST fail open
- *     into the existing local app — IndexedDB history stays reachable offline.
+ *     into the existing local app, IndexedDB history stays reachable offline.
  *   - When an update is confirmed available inside the budget the renderer
  *     shows a non-dismissible gate while the download runs. Download itself is
  *     allowed to take longer than 3 seconds; only the availability check is
@@ -67,13 +67,20 @@ export interface DesktopUpdaterControllerOptions {
   readonly onStateChange?: DesktopUpdateListener;
   readonly onBeforeQuitAndInstall?: () => void;
   readonly logger?: (event: string, detail?: Record<string, unknown>) => void;
+  /**
+   * When true, an available update is never downloaded or installed in-app;
+   * the controller settles into the terminal `manual-required` phase so the
+   * renderer can prompt a manual download. Set for platforms whose builds
+   * cannot self-apply (today: Windows, unsigned).
+   */
+  readonly manualDownloadOnly?: boolean;
 }
 
 const DEFAULT_TIMEOUT_MS = 3000;
 
 /**
  * Drives the desktop update state machine. One instance per main-process boot.
- * The class is small by design — only state transitions live here. Wiring to
+ * The class is small by design, only state transitions live here. Wiring to
  * the real `electron-updater` and to the renderer happens in a factory.
  */
 export class DesktopUpdaterController {
@@ -92,6 +99,7 @@ export class DesktopUpdaterController {
   private availabilityCheckInFlight = false;
   private startCalled = false;
   private installPolicy: DownloadInstallPolicy = 'auto';
+  private readonly manualDownloadOnly: boolean;
   private timeoutHandle: unknown = null;
   private readonly availabilityResolvers: AvailabilityResolver[] = [];
 
@@ -102,6 +110,7 @@ export class DesktopUpdaterController {
     this.clearTimeoutImpl = opts.clearTimeout ?? ((h) => globalThis.clearTimeout(h as ReturnType<typeof globalThis.setTimeout>));
     this.onBeforeQuitAndInstall = opts.onBeforeQuitAndInstall ?? (() => {});
     this.logger = opts.logger ?? (() => {});
+    this.manualDownloadOnly = opts.manualDownloadOnly ?? false;
     this.state = buildIdleDesktopUpdateState(opts.currentVersion);
     if (opts.onStateChange) this.listeners.add(opts.onStateChange);
     this.bindUpdaterEvents();
@@ -114,7 +123,7 @@ export class DesktopUpdaterController {
    *
    * The controller transitions into `checking` SYNCHRONOUSLY so the renderer's
    * first `getDesktopUpdateState()` snapshot cannot observe an `idle` value in
-   * packaged builds — `idle` only means "no check has been issued yet" and
+   * packaged builds, `idle` only means "no check has been issued yet" and
    * leaving that visible to the renderer would briefly unblock the PIN/auth
    * gate underneath the update boundary.
    */
@@ -264,6 +273,24 @@ export class DesktopUpdaterController {
     this.availabilityCheckInFlight = false;
     this.clearPendingTimeout();
     const targetVersion = typeof info?.version === 'string' ? info.version : null;
+
+    // Platforms that cannot self-apply (Windows, unsigned) settle into a
+    // terminal, non-blocking manual-required phase: no download, no restart,
+    // the renderer prompts a manual download. Gate stays hidden.
+    if (this.manualDownloadOnly) {
+      const manualState: DesktopUpdateState = {
+        ...this.state,
+        phase: 'manual-required',
+        targetVersion,
+        progress: null,
+        error: null,
+      };
+      this.logger('manual-update-required', { targetVersion });
+      this.transition(manualState);
+      this.resolveAvailabilityWaiters(manualState);
+      return;
+    }
+
     const nextAvailabilityState: DesktopUpdateState = {
       ...this.state,
       phase: this.installPolicy === 'auto' ? 'checking' : 'preparing',

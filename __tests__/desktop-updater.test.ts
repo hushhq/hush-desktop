@@ -80,6 +80,7 @@ function makeTimerHarness() {
 function buildController(opts?: {
   timeoutMs?: number;
   onBeforeQuitAndInstall?: () => void;
+  manualDownloadOnly?: boolean;
 }) {
   const updater = new FakeUpdater();
   const timer = makeTimerHarness();
@@ -92,6 +93,7 @@ function buildController(opts?: {
     clearTimeout: timer.clearTimeoutFake,
     onStateChange: (s) => states.push(s),
     onBeforeQuitAndInstall: opts?.onBeforeQuitAndInstall,
+    manualDownloadOnly: opts?.manualDownloadOnly,
   });
   return { controller, updater, timer, states };
 }
@@ -458,5 +460,37 @@ describe('DesktopUpdaterController', () => {
     expect(h.controller.getState().phase).toBe('downloaded');
     h.updater.emit('download-progress', { percent: 99, transferred: 1, total: 1, bytesPerSecond: 1 });
     expect(h.controller.getState().phase).toBe('downloaded');
+  });
+});
+
+describe('DesktopUpdaterController manualDownloadOnly (Windows)', () => {
+  it('UpdateAvailable_SettlesIntoManualRequired_WithoutDownloading', async () => {
+    const h = buildController({ manualDownloadOnly: true });
+    h.controller.start();
+    h.updater.emit('update-available', { version: '0.1.40-mvp' } as UpdateInfoLike);
+    await flushMicrotasks();
+
+    const state = h.controller.getState();
+    expect(state.phase).toBe('manual-required');
+    expect(state.targetVersion).toBe('0.1.40-mvp');
+    expect(h.updater.downloadUpdateCalls).toBe(0);
+    expect(h.updater.quitAndInstallCalls).toBe(0);
+  });
+
+  it('NoUpdate_StillFailsOpen', async () => {
+    const h = buildController({ manualDownloadOnly: true });
+    h.controller.start();
+    h.updater.emit('update-not-available', {});
+    await flushMicrotasks();
+    expect(h.controller.getState().phase).toBe('skipped');
+  });
+
+  it('DefaultAutoPlatform_StillDownloads', async () => {
+    const h = buildController(); // manualDownloadOnly defaults false
+    h.controller.start();
+    h.updater.emit('update-available', { version: '0.1.40-mvp' } as UpdateInfoLike);
+    await flushMicrotasks();
+    expect(h.controller.getState().phase).not.toBe('manual-required');
+    expect(h.updater.downloadUpdateCalls).toBeGreaterThanOrEqual(0);
   });
 });

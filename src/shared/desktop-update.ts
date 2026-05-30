@@ -3,13 +3,13 @@
  *
  * The main process owns the state; the renderer reads a snapshot via
  * {@link DesktopApi.getDesktopUpdateState} and subscribes to push updates via
- * {@link DesktopApi.onDesktopUpdateState}. Keep this surface minimal — any new
+ * {@link DesktopApi.onDesktopUpdateState}. Keep this surface minimal, any new
  * field needs an explicit reason and a renderer test.
  */
 export type DesktopUpdatePhase =
   /**
    * No check has been issued yet. Gate hidden. In packaged builds this state
-   * is short-lived — the controller transitions out of `idle` synchronously
+   * is short-lived, the controller transitions out of `idle` synchronously
    * from `start()` so the renderer never observes it once an update check
    * has been initiated. Browser builds (no desktop bridge) keep it forever.
    */
@@ -32,7 +32,15 @@ export type DesktopUpdatePhase =
   /** Fail-open: 3s timeout, no update available, or unrecoverable error before download. Gate hidden. */
   | 'skipped'
   /** Fail-open after a download error. Gate hidden. */
-  | 'error';
+  | 'error'
+  /**
+   * An update is available but this platform cannot self-apply it (Windows
+   * builds are unsigned, so an auto-download + restart would not actually
+   * update). The app stays fully usable; the renderer shows a non-blocking
+   * prompt to download the new version manually. Gate hidden: never blocks.
+   * `targetVersion` carries the available version.
+   */
+  | 'manual-required';
 
 export interface DesktopUpdateProgress {
   readonly percent: number;
@@ -48,7 +56,7 @@ export interface DesktopUpdateState {
   readonly progress: DesktopUpdateProgress | null;
   /**
    * Diagnostic string for the most recent skip/error reason. Not surfaced to
-   * the user — used only for logs and tests.
+   * the user, used only for logs and tests.
    */
   readonly error: string | null;
 }

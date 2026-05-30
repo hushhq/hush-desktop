@@ -29,7 +29,7 @@ export const BACKGROUND_UPDATE_CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000;
  *
  * Push pushes via `webContents.send(IPC_CHANNEL.UPDATE_STATE_EVENT, state)` are
  * routed through the provider. If no window exists yet (the controller started
- * before the renderer mounted) the push is dropped — the renderer will catch
+ * before the renderer mounted) the push is dropped, the renderer will catch
  * up on its next `getDesktopUpdateState()` snapshot, which is already part of
  * its hydration path.
  *
@@ -45,6 +45,10 @@ export function startDesktopUpdater(
   const controller = new DesktopUpdaterController({
     updater: autoUpdater as unknown as UpdaterLike,
     currentVersion: app.getVersion(),
+    // Windows builds are unsigned, so electron-updater cannot self-apply an
+    // update (the app would restart without updating). Prompt manual download
+    // instead. macOS (signed+notarized) and Linux AppImage auto-update.
+    manualDownloadOnly: process.platform === 'win32',
     onBeforeQuitAndInstall: options.onBeforeQuitAndInstall,
     onStateChange: (state) => emitToRenderer(getWindow, state),
     logger: (event, detail) => {
@@ -76,6 +80,6 @@ function emitToRenderer(getWindow: MainWindowProvider, state: DesktopUpdateState
   } catch {
     // Window may have been torn down between the destroyed check and the send,
     // or the renderer may not yet be ready to receive IPC. Nothing actionable
-    // in main — the renderer hydrates via `getDesktopUpdateState()` on mount.
+    // in main, the renderer hydrates via `getDesktopUpdateState()` on mount.
   }
 }
