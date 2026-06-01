@@ -158,3 +158,91 @@ jobs:
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') || contains(github.ref_name, 'mvp') }}
           generate_release_notes: true
           files: release-assets/*
+
+  # Propagate the published release to the package-manager surfaces. The landing
+  # (gethush.live) resolves the latest release at runtime, so it is not bumped
+  # here. Runs only for tag releases (the publish job above is tag-gated too).
+  update-distribution:
+    name: Update AUR + Homebrew
+    needs: publish
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout hush-desktop
+        uses: actions/checkout@v4
+
+      - name: Resolve version + checksums
+        id: meta
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"          # e.g. v0.1.44-mvp
+          version="${tag#v}"                # 0.1.44-mvp (cask + asset filenames)
+          pkgver="${version%-mvp}"          # 0.1.44 (AUR pkgver; source re-adds -mvp)
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern sha256sums.txt -O sha.txt
+          deb_sha=$(grep "hush-desktop_${version}_amd64.deb$" sha.txt | awk '{print $1}')
+          arm_sha=$(grep "Hush-${version}-arm64.dmg$" sha.txt | awk '{print $1}')
+          x64_sha=$(grep "Hush-${version}.dmg$" sha.txt | awk '{print $1}')
+          for v in "$deb_sha" "$arm_sha" "$x64_sha"; do
+            [ -n "$v" ] || { echo "::error::missing checksum for $version"; exit 1; }
+          done
+          {
+            echo "version=$version"
+            echo "pkgver=$pkgver"
+            echo "deb_sha=$deb_sha"
+            echo "arm_sha=$arm_sha"
+            echo "x64_sha=$x64_sha"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Prepare AUR PKGBUILD
+        env:
+          PKGVER: ${{ steps.meta.outputs.pkgver }}
+          DEB_SHA: ${{ steps.meta.outputs.deb_sha }}
+        run: |
+          set -euo pipefail
+          cp packaging/aur/PKGBUILD /tmp/PKGBUILD
+          sed -i "s|^pkgver=.*|pkgver=${PKGVER}|" /tmp/PKGBUILD
+          sed -i "s|^sha256sums=.*|sha256sums=('${DEB_SHA}')|" /tmp/PKGBUILD
+
+      - name: Publish AUR package
+        uses: KSXGitHub/github-actions-deploy-aur@v2.7.2
+        with:
+          pkgname: hush-desktop-bin
+          pkgbuild: /tmp/PKGBUILD
+          commit_username: hush-ci
+          commit_email: security@gethush.live
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "upgpkg: hush-desktop-bin ${{ steps.meta.outputs.pkgver }}-1"
+
+      - name: Mint Homebrew tap token
+        id: tap-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CASK_APP_ID }}
+          private-key: ${{ secrets.CASK_APP_PRIVATE_KEY }}
+          owner: hushhq
+          repositories: homebrew-hush
+
+      - name: Update Homebrew cask
+        env:
+          GH_TOKEN: ${{ steps.tap-token.outputs.token }}
+          V: ${{ steps.meta.outputs.version }}
+          ARM: ${{ steps.meta.outputs.arm_sha }}
+          X64: ${{ steps.meta.outputs.x64_sha }}
+        run: |
+          set -euo pipefail
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/hushhq/homebrew-hush.git" tap
+          cd tap
+          sed -i "s/version \".*\"/version \"${V}\"/" Casks/hush.rb
+          # Replace the sha256 inside the on_arm / on_intel blocks specifically.
+          perl -0pi -e "s/(on_arm do\s*\n\s*sha256 \")[a-f0-9]+(\")/\${1}${ARM}\${2}/" Casks/hush.rb
+          perl -0pi -e "s/(on_intel do\s*\n\s*sha256 \")[a-f0-9]+(\")/\${1}${X64}\${2}/" Casks/hush.rb
+          git config user.name "hush-cask-bumper[bot]"
+          git config user.email "hush-cask-bumper[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "cask already up to date"
+          else
+            git commit -am "feat(cask): bump hush to ${V}"
+            git push
+          fi
