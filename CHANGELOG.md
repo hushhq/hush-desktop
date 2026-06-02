@@ -11,6 +11,25 @@ it is missing.
 
 ## [Unreleased]
 
+## [0.1.45-mvp] - 2026-06-02
+
+### Added
+- Voice channels now play a sound when someone joins or leaves a channel, and
+  when a screen-share starts or ends. You hear your own actions too, and
+  switching channels plays the leave then the join. (HUSHHQ-119)
+
+### Fixed
+- Channel hover and the active-channel highlight are now clearly visible whether
+  the translucency (glass) effect is on or off, and no longer wash out depending
+  on the desktop wallpaper behind the window. The bottom user menu and voice
+  controls got the same treatment, and the message composer now lines up with
+  the user menu. (HUSHHQ-123)
+- Device linking recovers from a stuck "transfer slot occupied" (HTTP 409) error
+  after an interrupted transfer; the orphaned transfer slot is released and the
+  next attempt succeeds in the same session. (HUSHHQ-101)
+- The audio output picker no longer shows a stray description line, matching the
+  microphone and camera pickers. (HUSHHQ-127)
+
 ## [0.1.44-mvp] - 2026-06-01
 
 ### Fixed
