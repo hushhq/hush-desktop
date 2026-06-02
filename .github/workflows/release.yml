@@ -139,6 +139,9 @@ jobs:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
+      - name: Checkout hush-desktop
+        uses: actions/checkout@v4
+
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
@@ -152,11 +155,34 @@ jobs:
             | sort -z \
             | xargs -0 sha256sum > sha256sums.txt
 
+      # Release notes come from CHANGELOG.md, not auto-generated commit logs.
+      # The tag vX.Y.Z maps to the `## [X.Y.Z]` section; a missing section fails
+      # the release so CHANGELOG.md is bumped before every tag.
+      - name: Extract release notes from CHANGELOG.md
+        id: notes
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          section="$(awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" {inv=1; next}
+            inv && /^## \[/ {exit}
+            inv {print}
+          ' CHANGELOG.md)"
+          if [ -z "$(printf '%s' "$section" | tr -d '[:space:]')" ]; then
+            echo "::error::No CHANGELOG.md section for ${version}. Add a '## [${version}]' entry before tagging."
+            exit 1
+          fi
+          {
+            echo "body<<__CHANGELOG_EOF__"
+            printf '%s\n' "$section"
+            echo "__CHANGELOG_EOF__"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Publish release assets
         uses: softprops/action-gh-release@v2
         with:
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') || contains(github.ref_name, 'mvp') }}
-          generate_release_notes: true
+          body: ${{ steps.notes.outputs.body }}
           files: release-assets/*
 
   # Propagate the published release to the package-manager surfaces. The landing
