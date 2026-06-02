@@ -227,22 +227,29 @@ jobs:
           DEB_SHA: ${{ steps.meta.outputs.deb_sha }}
         run: |
           set -euo pipefail
-          cp packaging/aur/PKGBUILD /tmp/PKGBUILD
-          sed -i "s|^pkgver=.*|pkgver=${PKGVER}|" /tmp/PKGBUILD
-          sed -i "s|^sha256sums=.*|sha256sums=('${DEB_SHA}')|" /tmp/PKGBUILD
+          # The deploy-aur action runs inside a Docker container that only
+          # mounts the workspace, so the PKGBUILD it reads must live under the
+          # workspace (a relative path); an absolute /tmp path is not visible
+          # in the container. Edit the checked-in copy in place.
+          sed -i "s|^pkgver=.*|pkgver=${PKGVER}|" packaging/aur/PKGBUILD
+          sed -i "s|^sha256sums=.*|sha256sums=('${DEB_SHA}')|" packaging/aur/PKGBUILD
 
       - name: Publish AUR package
         uses: KSXGitHub/github-actions-deploy-aur@v2.7.2
         with:
           pkgname: hush-desktop-bin
-          pkgbuild: /tmp/PKGBUILD
+          pkgbuild: packaging/aur/PKGBUILD
           commit_username: hush-ci
           commit_email: security@gethush.live
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
           commit_message: "upgpkg: hush-desktop-bin ${{ steps.meta.outputs.pkgver }}-1"
 
+      # The Homebrew cask is independent of the AUR package: a failure
+      # publishing one must not skip the other. Gate the cask steps on the
+      # checksum resolution succeeding, not on the AUR step.
       - name: Mint Homebrew tap token
         id: tap-token
+        if: ${{ !cancelled() && steps.meta.outcome == 'success' }}
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.CASK_APP_ID }}
@@ -251,6 +258,7 @@ jobs:
           repositories: homebrew-hush
 
       - name: Update Homebrew cask
+        if: ${{ !cancelled() && steps.meta.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ steps.tap-token.outputs.token }}
           V: ${{ steps.meta.outputs.version }}
